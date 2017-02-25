@@ -1,0 +1,12 @@
+\\Enzojz-desktop\e\TPFMC\bin\Debug\TpFMC.exe.config
+\\Enzojz-desktop\e\TPFMC\bin\Debug\TpFMC.XML
+\\Enzojz-desktop\e\TPFMC\bin\Debug\TpFMC.exe
+\\Enzojz-desktop\e\TPFMC\bin\Debug\TpFMC.pdb
+\\Enzojz-desktop\e\TPFMC\TpFMC\obj\Debug\TpFMC.exe
+\\Enzojz-desktop\e\TPFMC\TpFMC\obj\Debug\TpFMC.pdb
+E:\TPFMC\bin\Debug\TpFMC.exe.config
+E:\TPFMC\bin\Debug\TpFMC.XML
+E:\TPFMC\bin\Debug\TpFMC.exe
+E:\TPFMC\bin\Debug\TpFMC.pdb
+E:\TPFMC\TpFMC\obj\Debug\TpFMC.exe
+E:\TPFMC\TpFMC\obj\Debug\TpFMC.pdb
