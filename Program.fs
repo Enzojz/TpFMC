@@ -6,95 +6,147 @@ type t =
       vertices : byte list
       tangents : byte list
       uv0 : byte list
-      indices : byte list }
+      nbFace : int }
 
-let rec meshParent (meshIndex : int) (root : Node) = 
-    match (root.MeshIndices |> Seq.contains meshIndex) with
-    | true -> (Some root)
-    | false -> 
-        root.Children
+type c = 
+    { normals : int
+      vertices : int
+      tangents : int
+      uv0 : int }
+
+let rec namedNodes (node : Node) = 
+    match (node.Name.Trim().Length > 0, node.HasMeshes, node.HasChildren) with
+    | (true, true, _) -> [ node ]
+    | (false, _, false) | (true, false, false) -> []
+    | (false, _, true) | (true, false, true) -> 
+        node.Children
+        |> Seq.map namedNodes
+        |> Seq.concat
         |> Seq.toList
-        |> List.map (meshParent meshIndex)
-        |> List.filter (function 
-               | None -> false
-               | _ -> true)
-        |> (function 
-        | [] -> None
-        | fst :: rest -> fst)
 
 let flatten = List.fold (@) []
 
-let toByte (values : float32 list) = 
-    values
-    |> List.map (BitConverter.GetBytes >> Array.toList)
-    |> flatten
-
 let toBytes f vectors = 
+    let toByte (values : float32 list) = 
+        values
+        |> List.map (BitConverter.GetBytes >> Array.toList)
+        |> flatten
     vectors
     |> List.map (f >> toByte)
     |> flatten
 
-let convertMesh (mesh : Mesh, meshName) = 
-    let indices = mesh.GetUnsignedIndices() |> Seq.toList
+let convertMesh (mesh : Mesh) = 
     let normals = mesh.Normals |> Seq.toList
     let vertices = mesh.Vertices |> Seq.toList
     let tangents = mesh.Tangents |> Seq.toList
+    let uvCoords = (Seq.item 0 mesh.TextureCoordinateChannels) |> Seq.toList
     normals |> List.iter (fun n -> n.Normalize())
-    let uvCoords = 
-        mesh.TextureCoordinateChannels
-        |> Seq.item 0
-        |> Seq.toList
-    
-    let r = 
-        { normals = normals |> toBytes (fun n -> [ n.X; n.Y; n.Z ])
-          vertices = vertices |> toBytes (fun n -> [ n.X; n.Y; n.Z ])
-          tangents = tangents |> toBytes (fun n -> [ n.X; n.Y; n.Z; 1.0f ])
-          uv0 = uvCoords |> toBytes (fun n -> [ n.X; n.Y ])
-          indices = 
-              indices
-              |> List.map (BitConverter.GetBytes >> Array.toList)
-              |> flatten }
-    
-    (meshName, r)
+    { normals = normals |> toBytes (fun n -> [ n.X; n.Y; n.Z ])
+      vertices = vertices |> toBytes (fun n -> [ n.X; n.Y; n.Z ])
+      tangents = tangents |> toBytes (fun n -> [ n.X; n.Y; n.Z; 1.0f ])
+      uv0 = uvCoords |> toBytes (fun n -> [ n.X; n.Y ])
+      nbFace = mesh.FaceCount }
 
-let meshGen (r : t) = 
+let meshGen (meshes : (Material * t) list) = 
     let d = sprintf "%d"
-    let oNormals = 0
-    let oVertices = oNormals + r.normals.Length
-    let oTangents = oVertices + r.vertices.Length
-    let oUv0 = oTangents + r.tangents.Length
-    let oIndices = oUv0 + r.uv0.Length
-    [| @"function data() return {"
-       @"  animations = {"
-       @"  },"
-       @"  matConfigs = { { 0, }, },"
-       @"  subMeshes = { {"
-       @"      indices = {"
-       @"          normal =   { count = " + d r.indices.Length + ", offset = " + d oIndices + ", },"
-       @"          position = { count = " + d r.indices.Length + ", offset = " + d oIndices + ", },"
-       @"          tangent =  { count = " + d r.indices.Length + ", offset = " + d oIndices + ", },"
-       @"          uv0 =      { count = " + d r.indices.Length + ", offset = " + d oIndices + ", },"
-       @"      },"
-       @"      materials = { },"
-       @"  }, },"
-       @"  vertexAttr ="
-       @"   {"
-       @"      normal =       { count = " + d r.normals.Length + ", numComp = 3, offset = " + d oNormals + ", },"
-       @"      position =     { count = " + d r.vertices.Length + ", numComp = 3, offset = " + d oVertices + ", },"
-       @"      tangent =      { count = " + d r.tangents.Length + ", numComp = 4, offset = " + d oTangents + ", },"
-       @"      uv0 =          { count = " + d r.uv0.Length + ", numComp = 2, offset = " + d oUv0 + ", },"
-       @"  },"
-       @"} end" |]
+    
+    let counts = 
+        { normals = meshes |> List.sumBy (fun (_, m) -> m.normals.Length)
+          vertices = meshes |> List.sumBy (fun (_, m) -> m.vertices.Length)
+          tangents = meshes |> List.sumBy (fun (_, r) -> r.tangents.Length)
+          uv0 = meshes |> List.sumBy (fun (_, r) -> r.uv0.Length) }
+    
+    let offsets = 
+        { normals = 0
+          vertices = counts.normals
+          tangents = counts.normals + counts.vertices
+          uv0 = counts.normals + counts.vertices + counts.tangents }
+    
+    let rec subMeshIndices (meshes : (Material * t) list) offset result = 
+        match meshes with
+        | [] -> result
+        | (m, r) :: rest -> 
+            let indiceLength = r.nbFace * 3 * sizeof<int>
+            result @ [ @"       {"
+                       @"           indices = {"
+                       @"               normal =   { count = " + d indiceLength + ", offset = " + d offset + ", },"
+                       @"               position = { count = " + d indiceLength + ", offset = " + d offset + ", },"
+                       @"               tangent =  { count = " + d indiceLength + ", offset = " + d offset + ", },"
+                       @"               uv0 =      { count = " + d indiceLength + ", offset = " + d offset + ", },"
+                       @"           },"
+                       @"           materials = { """ + m.Name + @".mtl"" },"
+                       @"       }," ]
+            |> subMeshIndices rest (offset + indiceLength)
+    
+    [ @"function data() return {"
+      @"   animations = {"
+      @"   },"
+      @"   matConfigs = { { 0, }, },"
+      @"   vertexAttr ="
+      @"   {"
+      @"      normal =       { count = " + d counts.normals + ", numComp = 3, offset = " + d offsets.normals + ", },"
+      @"      position =     { count = " + d counts.vertices + ", numComp = 3, offset = " + d offsets.vertices + ", },"
+      @"      tangent =      { count = " + d counts.tangents + ", numComp = 4, offset = " + d offsets.tangents + ", },"
+      @"      uv0 =          { count = " + d counts.uv0 + ", numComp = 2, offset = " + d offsets.uv0 + ", },"
+      @"   },"
+      @"   subMeshes = { " ] @ (subMeshIndices meshes (offsets.uv0 + counts.uv0) []) @ [ @"   },"; @"} end" ] 
     |> String.concat Environment.NewLine
 
-let exportMesh dir (meshName, r) = 
+let blobGen mesh = 
+    let indices = 
+        [ 0..(mesh.nbFace * 3 - 1) ]
+        |> List.map (BitConverter.GetBytes >> Array.toList)
+        |> flatten
+    mesh.normals @ mesh.vertices @ mesh.tangents @ mesh.uv0 @ indices |> List.toArray
+
+let exportMesh dir meshName (meshes : (Material * t list) list) = 
+    let mergeMeshes (meshes : t list) = 
+        { normals = 
+              meshes
+              |> List.map (fun r -> r.normals)
+              |> List.concat
+          vertices = 
+              meshes
+              |> List.map (fun r -> r.vertices)
+              |> List.concat
+          tangents = 
+              meshes
+              |> List.map (fun r -> r.tangents)
+              |> List.concat
+          uv0 = 
+              meshes
+              |> List.map (fun r -> r.uv0)
+              |> List.concat
+          nbFace = meshes |> List.sumBy (fun r -> r.nbFace) }
+    
     let mshPath = dir + "/" + meshName + ".msh"
     let blobPath = mshPath + ".blob"
     printfn "Generating mesh binary:  %s" blobPath
-    IO.File.WriteAllBytes(blobPath, r.normals @ r.vertices @ r.tangents @ r.uv0 @ r.indices |> List.toArray)
+    IO.File.WriteAllBytes(blobPath, 
+                          meshes
+                          |> List.map (fun (_, meshes) -> mergeMeshes meshes)
+                          |> mergeMeshes
+                          |> blobGen)
     printfn "Generating mesh:         %s" mshPath
-    IO.File.WriteAllText(mshPath, meshGen r)
-    ()
+    IO.File.WriteAllText(mshPath, 
+                         meshes
+                         |> List.map (fun (material, meshes) -> (material, mergeMeshes meshes))
+                         |> meshGen)
+
+let convertNode dir (scene : Scene) (node : Node) = 
+    let rec allMeshes (node : Node) = 
+        (node.MeshIndices
+         |> Seq.map (fun i -> scene.Meshes.Item(i))
+         |> Seq.toList)
+        @ (node.Children
+           |> Seq.map allMeshes
+           |> Seq.concat
+           |> Seq.toList)
+    node
+    |> allMeshes
+    |> List.groupBy (fun (m : Mesh) -> scene.Materials.Item(m.MaterialIndex))
+    |> List.map (fun (material, meshes) -> (material, List.map convertMesh meshes))
+    |> (exportMesh dir node.Name)
 
 let convert (inputFile : string) = 
     let dir = IO.Path.GetDirectoryName(inputFile)
@@ -104,15 +156,11 @@ let convert (inputFile : string) =
             (inputFile, 
              PostProcessSteps.CalculateTangentSpace ||| PostProcessSteps.Triangulate 
              ||| PostProcessSteps.GenerateNormals)
-    printfn "%s contains %d mesh(es). %s" inputFile scene.MeshCount |> ignore
-    scene.Meshes
-    |> Seq.mapi (fun i m -> 
-           (m, 
-            match meshParent i scene.RootNode with
-            | None -> sprintf "%d" i
-            | Some p -> p.Name))
-    |> Seq.map convertMesh
-    |> Seq.iter (exportMesh dir)
+    let nodes = namedNodes scene.RootNode
+    printfn "%s contains %d mesh(es)." inputFile nodes.Length |> ignore
+    nodes
+    |> Seq.iter (convertNode dir scene)
+    |> ignore
     assimpImporter.Dispose()
 
 [<EntryPoint>]
