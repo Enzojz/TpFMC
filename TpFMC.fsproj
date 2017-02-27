@@ -29,6 +29,7 @@
     <DocumentationFile>..\bin\Debug\TpFMC.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
     <StartArguments>st.ase</StartArguments>
+    <OtherFlags>--mlcompatibility</OtherFlags>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -40,7 +41,9 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>..\bin\Release\TpFMC.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
-    <StartArguments>st.ase</StartArguments>
+    <StartArguments>st.ase q.ase</StartArguments>
+    <OtherFlags>
+    </OtherFlags>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
