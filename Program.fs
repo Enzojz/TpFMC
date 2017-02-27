@@ -99,7 +99,7 @@ let blobGen mesh =
         |> flatten
     mesh.normals @ mesh.vertices @ mesh.tangents @ mesh.uv0 @ indices |> List.toArray
 
-let exportMesh dir meshName (meshes : (Material * t list) list) = 
+let prepareMesh (meshes : (Material * t list) list) = 
     let mergeMeshes (meshes : t list) = 
         { normals = 
               meshes
@@ -118,25 +118,25 @@ let exportMesh dir meshName (meshes : (Material * t list) list) =
               |> List.map (fun r -> r.uv0)
               |> List.concat
           nbFace = meshes |> List.sumBy (fun r -> r.nbFace) }
-    
+    (meshes
+     |> List.map (fun (_, meshes) -> mergeMeshes meshes)
+     |> mergeMeshes
+     |> blobGen, 
+     meshes
+     |> List.map (fun (material, meshes) -> (material, mergeMeshes meshes))
+     |> meshGen)
+
+let exportMesh dir (meshName, blob, mesh) = 
     let mshPath = dir + "/" + meshName + ".msh"
     let blobPath = mshPath + ".blob"
-    printfn "Generating mesh binary:  %s" blobPath
-    IO.File.WriteAllBytes(blobPath, 
-                          meshes
-                          |> List.map (fun (_, meshes) -> mergeMeshes meshes)
-                          |> mergeMeshes
-                          |> blobGen)
-    printfn "Generating mesh:         %s" mshPath
-    IO.File.WriteAllText(mshPath, 
-                         meshes
-                         |> List.map (fun (material, meshes) -> (material, mergeMeshes meshes))
-                         |> meshGen)
+    IO.File.WriteAllBytes(blobPath, blob)
+    IO.File.WriteAllText(mshPath, mesh)
+    (meshName + ".msh.blob", meshName + ".msh")
 
-let convertNode dir (scene : Scene) (node : Node) = 
+let convertNode (scene : Scene) (node : Node) = 
     let rec allMeshes (node : Node) = 
         (node.MeshIndices
-         |> Seq.map (fun i -> scene.Meshes.Item(i))
+         |> Seq.map (fun i -> scene.Meshes.[i])
          |> Seq.toList)
         @ (node.Children
            |> Seq.map allMeshes
@@ -144,12 +144,13 @@ let convertNode dir (scene : Scene) (node : Node) =
            |> Seq.toList)
     node
     |> allMeshes
-    |> List.groupBy (fun (m : Mesh) -> scene.Materials.Item(m.MaterialIndex))
+    |> List.groupBy (fun (m : Mesh) -> scene.Materials.[m.MaterialIndex])
     |> List.map (fun (material, meshes) -> (material, List.map convertMesh meshes))
-    |> (exportMesh dir node.Name)
+    |> prepareMesh
+    |> fun (blob, mesh) -> (node.Name, blob, mesh)
 
 let convert (inputFile : string) = 
-    let dir = IO.Path.GetDirectoryName(inputFile)
+    let dir = IO.Path.GetDirectoryName(IO.Path.GetFullPath(inputFile))
     let assimpImporter = new AssimpContext()
     let scene = 
         assimpImporter.ImportFile
@@ -157,20 +158,38 @@ let convert (inputFile : string) =
              PostProcessSteps.CalculateTangentSpace ||| PostProcessSteps.Triangulate 
              ||| PostProcessSteps.GenerateNormals)
     let nodes = namedNodes scene.RootNode
-    printfn "%s contains %d mesh(es)." inputFile nodes.Length |> ignore
-    nodes
-    |> Seq.iter (convertNode dir scene)
+    printfn ""
+    printfn "%s contains %d mesh(es)." inputFile nodes.Length
+    printfn "Output path: %s" dir
+    printfn "Converting..."
+    Async.Parallel [ for n in nodes -> 
+                         async { 
+                             return n
+                                    |> (convertNode scene)
+                                    |> (exportMesh dir)
+                         } ]
+    |> Async.RunSynchronously
+    |> Array.iter (fun (b, m) -> 
+           printfn "Blob exported:%s" b
+           printfn "Mesh exported:%s" m)
     |> ignore
     assimpImporter.Dispose()
 
 [<EntryPoint>]
 let main argv = 
-    match argv with
-    | [| filename |] -> 
-        (match (IO.File.Exists filename) with
-         | false -> printfn "%s doesn't exists!" filename
-         | true -> convert filename)
-    | _ -> printfn "Usage: tpfmc [filename]"
-    printfn "Press any key to close..."
-    Console.ReadKey() |> ignore
+    let mutable start = true
+    let filename = 
+        match argv with
+        | [| filename |] -> filename
+        | [||] -> 
+            printfn "Usage: tpfmc [filename]"
+            printfn "or drag/drop the file in the console window."
+            Console.ReadLine()
+        | _ -> argv.[0]
+    while start do
+        match (IO.File.Exists filename) with
+        | false -> printfn "%s doesn't exists!" filename
+        | true -> convert filename
+        printfn @"Press ""R"" to repeat, any other key to close..."
+        start <- Console.ReadKey().Key = ConsoleKey.R
     0 // return an integer exit code
