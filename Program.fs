@@ -1,6 +1,19 @@
 ﻿open Assimp
 open System
 
+type Lua = 
+    | Val of int
+    | Str of string
+    | Ent of (string * Lua)
+    | Arr of Lua list
+
+let rec printLua indent (node: Lua) =
+    match node with
+    | Val num -> sprintf "%d" num
+    | Str str -> str
+    | Ent (name, x) -> name + " = " + (printLua indent x)
+    | Arr ls -> "{" + (ls |> List.map (printLua indent) |> String.concat ", ") + "}" + Environment.NewLine
+
 type ByteData = 
     { normals : byte list;
       vertices : byte list;
@@ -36,15 +49,19 @@ let toBytes f vectors =
     |> List.map (f >> toByte)
     |> flatten
 
-let convertMesh (mesh : Mesh) = 
+let revT = 
+    Matrix4x4(
+        1.0f, 0.0f, 0.0f, 0.0f, 
+        0.0f, 0.0f, -1.0f, 0.0f, 
+        0.0f, 1.0f, 0.0f, 0.0f, 
+        0.0f, 0.0f, 0.0f, 1.0f)
+
+let convertMesh ((mesh, transform) : (Mesh * Matrix4x4)) = 
     let normals = mesh.Normals |> Seq.toList
     let vertices = mesh.Vertices |> Seq.toList
     let tangents = mesh.Tangents |> Seq.toList
     let uv0 = (Seq.item 0 mesh.TextureCoordinateChannels) |> Seq.toList
-    
-    let uv1 = 
-        if mesh.TextureCoordinateChannelCount > 1 then (Seq.item 1 mesh.TextureCoordinateChannels) |> Seq.toList
-        else []
+    let uv1 = (Seq.item 1 mesh.TextureCoordinateChannels) |> Seq.toList
     normals |> List.iter (fun n -> n.Normalize())
     { normals = normals |> toBytes (fun n -> [ n.X; n.Y; n.Z ]);
       vertices = vertices |> toBytes (fun n -> [ n.X; n.Y; n.Z ]);
@@ -64,11 +81,11 @@ let meshGen (meshes : (Material * ByteData) list) =
           uv1 = meshes |> List.sumBy (fun (_, r) -> r.uv1.Length) }
     
     let offsets = 
-        { normals = 0;
-          vertices = counts.normals;
-          tangents = counts.normals + counts.vertices;
-          uv0 = counts.normals + counts.vertices + counts.tangents;
-          uv1 = counts.normals + counts.vertices + counts.tangents + counts.uv0 }
+        { vertices = 0;
+          uv0 = counts.vertices;
+          normals = counts.vertices + counts.uv0;
+          tangents = counts.vertices + counts.uv0 + counts.normals;
+          uv1 = counts.vertices + counts.uv0 + counts.normals + counts.tangents }
     
     let rec subMeshIndices (meshes : (Material * ByteData) list) offset result = 
         match meshes with
@@ -82,7 +99,7 @@ let meshGen (meshes : (Material * ByteData) list) =
                        @"               tangent =  { count = " + d indiceLength + ", offset = " + d offset + ", },";
                        @"               uv0 =      { count = " + d indiceLength + ", offset = " + d offset + ", }," ]
                      @ if r.uv1.Length = 0 then []
-                       else [ @"               uv0 =      { count = " + d indiceLength + ", offset = " + d offset + ", }," ]
+                       else [ @"               uv1 =      { count = " + d indiceLength + ", offset = " + d offset + ", }," ]
                        @ [ @"           },";
                            @"           materials = { """ + m.Name + @".mtl"" },";
                            @"       }," ]
@@ -101,7 +118,7 @@ let meshGen (meshes : (Material * ByteData) list) =
        @"      uv1 =          { count = " + d counts.uv1 + ", numComp = 2, offset = " + d offsets.uv1 + ", },";
        @"   },";
        @"   subMeshes = { " ]
-     @ (subMeshIndices meshes (offsets.uv0 + counts.uv0) []) @ [ @"   },"; @"} end" ])
+     @ (subMeshIndices meshes (offsets.uv1 + counts.uv1) []) @ [ @"   },"; @"} end" ])
     |> String.concat Environment.NewLine
 
 let blobGen mesh = 
@@ -109,7 +126,7 @@ let blobGen mesh =
         [ 0..(mesh.nbFace * 3 - 1) ]
         |> List.map (BitConverter.GetBytes >> Array.toList)
         |> flatten
-    mesh.normals @ mesh.vertices @ mesh.tangents @ mesh.uv0 @ mesh.uv1 @ indices |> List.toArray
+    mesh.vertices @ mesh.uv0 @ mesh.normals @ mesh.tangents @ mesh.uv1 @ indices@ indices@ indices@ indices @ indices |> List.toArray
 
 let prepareMesh (meshes : (Material * ByteData list) list) = 
     let mergeMeshes (meshes : ByteData list) = 
@@ -135,17 +152,25 @@ let exportMesh dir (meshName, blob, mesh) =
     IO.File.WriteAllText(mshPath, mesh)
     (meshName + ".msh.blob", meshName + ".msh")
 
+let transform (node : Node) =
+    let rec work (node : Node) (tf : Matrix4x4) = 
+        match node with
+        | null -> tf
+        | _ -> work node.Parent node.Transform * tf
+    work node Matrix4x4.Identity
+
+
 let convertNode (scene : Scene) (node : Node) = 
     let rec allMeshes (node : Node) = 
         (node.MeshIndices
-         |> Seq.map (fun i -> scene.Meshes.[i])
+         |> Seq.map (fun i -> (scene.Meshes.[i], transform node))
          |> Seq.toList)
         @ (node.Children
            |> Seq.collect allMeshes
            |> Seq.toList)
     node
     |> allMeshes
-    |> List.groupBy (fun (m : Mesh) -> scene.Materials.[m.MaterialIndex])
+    |> List.groupBy (fun ((m, t) : (Mesh * Matrix4x4)) -> scene.Materials.[m.MaterialIndex])
     |> List.map (fun (material, meshes) -> (material, List.map convertMesh meshes))
     |> prepareMesh
     |> fun (blob, mesh) -> (node.Name, blob, mesh)

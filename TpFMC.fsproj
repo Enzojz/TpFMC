@@ -28,7 +28,8 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>..\bin\Debug\TpFMC.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
-    <StartArguments>st.ase</StartArguments>
+    <StartArguments>
+    </StartArguments>
     <OtherFlags>--mlcompatibility</OtherFlags>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
@@ -41,7 +42,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>..\bin\Release\TpFMC.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
-    <StartArguments>st.ase q.ase</StartArguments>
+    <StartArguments>NS_6400_logo.fbx</StartArguments>
     <OtherFlags>
     </OtherFlags>
   </PropertyGroup>
