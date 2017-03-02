@@ -10,3 +10,4 @@ E:\TPFMC\bin\Debug\TpFMC.exe
 E:\TPFMC\bin\Debug\TpFMC.pdb
 E:\TPFMC\TpFMC\obj\Debug\TpFMC.exe
 E:\TPFMC\TpFMC\obj\Debug\TpFMC.pdb
+e:\TPFMC\TPFMC\obj\Debug\TpFMC.fsprojResolveAssemblyReference.cache
