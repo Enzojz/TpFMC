@@ -1,6 +1,0 @@
-E:\TPFMC\bin\Release\TpFMC.exe.config
-E:\TPFMC\bin\Release\TpFMC.XML
-E:\TPFMC\bin\Release\TpFMC.exe
-E:\TPFMC\bin\Release\TpFMC.pdb
-E:\TPFMC\TpFMC\obj\Release\TpFMC.exe
-E:\TPFMC\TpFMC\obj\Release\TpFMC.pdb
