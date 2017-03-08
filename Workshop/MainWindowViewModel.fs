@@ -41,24 +41,29 @@ type MainWindowViewModel() =
         |> List.rev
         |> (String.concat Environment.NewLine)
     
-    member this.EntryList = entryList
-    
     member private this.Out str = 
         console <- str :: console
         this.OnPropertyChanged("Console")
-    
+
+    member this.EntryList = entryList
+
     member this.SelectedEntry 
         with set (value : obj) = 
             match value with
             | :? Core.Input.ModelInfo as s -> selectedEntry <- Some s
             | _ -> selectedEntry <- None
     
+    member this.Geometries = 
+        match selectedEntry with
+        | None -> Model3DGroup()
+        | Some e -> Model3DGroup(Children = this.GeoGen e selectedMeshes)
+
     member private this.Transform(node : Assimp.Node) = 
         match List.filter (fst >> ((=) node)) meshesTransform with
         | [ (_, tr) ] -> tr * defaultTransform
         | _ -> defaultTransform
     
-    member this.GeoGen(model : Core.Input.ModelInfo) = 
+    member private this.GeoGen(model : Core.Input.ModelInfo) = 
         List.collect (fun n -> Core.Input.meshList model.scene ((Core.Input.transform n) * (n |> this.Transform)) n)
         >> List.map (fun (_, mesh) -> 
                let g = 
@@ -74,11 +79,20 @@ type MainWindowViewModel() =
                GeometryModel3D(geometry = g, material = DiffuseMaterial(Brushes.Gold)) :> Model3D)
         >> Model3DCollection
     
-    member this.Geometries = 
-        match selectedEntry with
-        | None -> Model3DGroup()
-        | Some e -> Model3DGroup(Children = this.GeoGen e selectedMeshes)
+    member this.MeshesSelected = 
+        RelayCommand(fun selectedItems -> 
+            selectedMeshes <- ((selectedItems :?> System.Collections.IList).Cast<Assimp.Node>() |> Seq.toList)
+            this.OnPropertyChanged("Geometries"))
     
+    member this.Convert = 
+        RelayCommand(fun _ -> 
+            entryList |> List.iter (fun e -> 
+                             e.nodes
+                             |> List.map (fun n -> Core.Output.generateMeshes e ((Core.Input.transform n) * (n |> this.Transform)) n)
+                             |> List.iter (fun (blob, mesh) -> 
+                                    this.Out(e.output + blob)
+                                    this.Out(e.output + mesh))))
+
     member private this.LoadFiles filenames = 
         entryList <- filenames
                      |> List.map Core.Input.read
@@ -105,16 +119,3 @@ type MainWindowViewModel() =
             |> Seq.toList
             |> this.LoadFiles)
     
-    member this.MeshesSelected = 
-        RelayCommand(fun selectedItems -> 
-            selectedMeshes <- ((selectedItems :?> System.Collections.IList).Cast<Assimp.Node>() |> Seq.toList)
-            this.OnPropertyChanged("Geometries"))
-    
-    member this.Convert = 
-        RelayCommand(fun _ -> 
-            entryList |> List.iter (fun e -> 
-                             e.nodes
-                             |> List.map (fun n -> Core.Output.generateMeshes e ((Core.Input.transform n) * (n |> this.Transform)) n)
-                             |> List.iter (fun (blob, mesh) -> 
-                                    this.Out(e.output + blob)
-                                    this.Out(e.output + mesh))))
