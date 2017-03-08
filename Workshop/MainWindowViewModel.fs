@@ -83,7 +83,7 @@ type MainWindowViewModel() =
     
     member this.GeoGen (model : Core.Input.ModelInfo) (nodes : Assimp.Node list) = 
         nodes
-        |> List.collect (fun n -> Core.Input.meshList model.scene ((Core.transform n) * (n |> this.Transform)) n)
+        |> List.collect (fun n -> Core.Input.meshList model.scene ((Core.Input.transform n) * (n |> this.Transform)) n)
         |> List.map (fun (_, mesh) -> 
                let g = 
                    new MeshGeometry3D(Positions = (mesh.vertices

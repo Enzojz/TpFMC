@@ -63,9 +63,9 @@
   </Target>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Library1.fs" />
     <Content Include="packages.config" />
     <Content Include="App.config" />
+    <Compile Include="Core.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="AssimpNet">

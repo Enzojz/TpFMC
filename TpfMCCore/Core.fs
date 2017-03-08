@@ -35,22 +35,6 @@ module Core =
             | C _ | F _ | V _ -> rs
             | _ -> ind rs (rs.Length > 30)
     
-    let rec namedNodes (node : Node) = 
-        match (node.Name.Trim().Length > 0, node.HasMeshes, node.HasChildren) with
-        | (true, true, _) -> [ node ]
-        | (false, _, false) | (true, false, false) -> []
-        | (false, _, true) | (true, false, true) -> 
-            node.Children
-            |> Seq.collect namedNodes
-            |> Seq.toList
-    
-    let transform (node : Node) = 
-        let rec work (node : Node) (tf : Matrix4x4) = 
-            match node with
-            | null -> tf
-            | _ -> work node.Parent (tf * node.Transform)
-        work node Matrix4x4.Identity
-    
     module Input = 
         type MeshData = 
             { normals : Vector3D list;
@@ -73,6 +57,22 @@ module Core =
         
         type ObjectInfo = 
             { name : string }
+        
+        let rec namedNodes (node : Node) = 
+            match (node.Name.Trim().Length > 0, node.HasMeshes, node.HasChildren) with
+            | (true, true, _) -> [ node ]
+            | (false, _, false) | (true, false, false) -> []
+            | (false, _, true) | (true, false, true) -> 
+                node.Children
+                |> Seq.collect namedNodes
+                |> Seq.toList
+        
+        let transform (node : Node) = 
+            let rec work (node : Node) (tf : Matrix4x4) = 
+                match node with
+                | null -> tf
+                | _ -> work node.Parent (tf * node.Transform)
+            work node Matrix4x4.Identity
         
         let read filename = 
             match (IO.File.Exists filename) with
@@ -139,11 +139,13 @@ module Core =
             let verM = rotM * Matrix4x4.FromTranslation(trans)
             rotM.Inverse()
             rotM.Transpose()
-            { mesh with vertices = mesh.vertices |> List.map ((*) verM);
+            { mesh with vertices = List.map ((*) verM) mesh.vertices;
                         normals = 
-                            mesh.normals |> List.map ((*) rotM >> (fun n -> 
-                                                      n.Normalize()
-                                                      n));
+                            mesh.normals
+                            |> List.map ((*) rotM)
+                            |> List.map (fun n -> 
+                                   n.Normalize()
+                                   n);
                         indices = 
                             if (scale.X * scale.Y * scale.Z < 0.0f) then List.map (fun (a, b, c) -> (c, b, a)) mesh.indices
                             else mesh.indices;
@@ -204,16 +206,9 @@ module Core =
               uv0 : int;
               uv1 : int }
         
-        let flatten = List.fold (@) []
-        
         let toBytes f vectors = 
-            let toByte (values : float32 list) = 
-                values
-                |> List.map (BitConverter.GetBytes >> Array.toList)
-                |> flatten
-            vectors
-            |> List.map (f >> toByte)
-            |> flatten
+            let toByte (values : float32 list) = values |> List.collect (BitConverter.GetBytes >> Array.toList)
+            vectors |> List.collect (f >> toByte)
         
         let convertToBytes (mesh : Input.MeshData) = 
             let nMesh = Input.normalizeMesh mesh
@@ -278,8 +273,7 @@ module Core =
             let indices = 
                 mesh.indices
                 |> List.collect (fun (a, b, c) -> [ a; b; c ])
-                |> List.map (BitConverter.GetBytes >> Array.toList)
-                |> flatten
+                |> List.collect (BitConverter.GetBytes >> Array.toList)
             mesh.vertices @ mesh.uv0 @ mesh.normals @ mesh.tangents @ mesh.uv1 @ indices |> List.toArray
         
         let prepareMesh (meshes : (Material * ByteData) list) = 
