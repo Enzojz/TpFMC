@@ -131,9 +131,9 @@ module Core =
                   |> tuplizeIndice }
         
         let normalizeMesh (mesh : MeshData) = 
-            let mutable quat = new Quaternion()
-            let mutable trans = new Vector3D()
-            let mutable scale = new Vector3D()
+            let mutable quat = Quaternion()
+            let mutable trans = Vector3D()
+            let mutable scale = Vector3D()
             mesh.transform.Decompose(&scale, &quat, &trans)
             let rotM = Matrix4x4.FromScaling(scale) * (quat.GetMatrix() |> Matrix4x4)
             let verM = rotM * Matrix4x4.FromTranslation(trans)
