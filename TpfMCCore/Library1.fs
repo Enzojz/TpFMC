@@ -48,7 +48,7 @@ module Core =
         let rec work (node : Node) (tf : Matrix4x4) = 
             match node with
             | null -> tf
-            | _ -> tf * (work node.Parent node.Transform)
+            | _ -> work node.Parent (tf * node.Transform)
         work node Matrix4x4.Identity
     
     module Input = 
@@ -59,7 +59,7 @@ module Core =
               uv0 : Vector2D list;
               uv1 : Vector2D list;
               transform : Matrix4x4;
-              nbFace : int }
+              indices : (int * int * int) list }
         
         type ModelInfo = 
             { filename : string;
@@ -99,6 +99,11 @@ module Core =
         let objectList model = model.scene.RootNode |> namedNodes
         
         let convertMesh (mesh : Mesh) = 
+            let rec tuplizeIndice = 
+                function 
+                | a :: b :: c :: rest -> (a, b, c) :: (tuplizeIndice rest)
+                | _ -> []
+            
             let normals = mesh.Normals |> Seq.toList
             let vertices = mesh.Vertices |> Seq.toList
             let tangents = mesh.Tangents |> Seq.toList
@@ -120,15 +125,36 @@ module Core =
               uv0 = uv0;
               uv1 = uv1;
               transform = Matrix4x4.Identity;
-              nbFace = mesh.FaceCount }
+              indices = 
+                  mesh.GetIndices()
+                  |> Seq.toList
+                  |> tuplizeIndice }
         
-        let normalizeMesh (mesh : MeshData) =
-            let rotM = mesh.transform |> Matrix3x3
+        let normalizeMesh (mesh : MeshData) = 
+            let mutable quat = new Quaternion()
+            let mutable trans = new Vector3D()
+            let mutable scale = new Vector3D()
+            mesh.transform.Decompose(&scale, &quat, &trans)
+            let rotM = Matrix4x4.FromScaling(scale) * (quat.GetMatrix() |> Matrix4x4)
+            let verM = rotM * Matrix4x4.FromTranslation(trans)
             rotM.Inverse()
             rotM.Transpose()
-            { mesh with vertices = mesh.vertices |> List.map (fun v -> mesh.transform * v);
-                        normals = mesh.normals |> List.map (fun v -> let n = rotM * v in n.Normalize(); n);
+            { mesh with vertices = mesh.vertices |> List.map ((*) verM);
+                        normals = 
+                            mesh.normals |> List.map ((*) rotM >> (fun n -> 
+                                                      n.Normalize()
+                                                      n));
+                        indices = 
+                            if (scale.X * scale.Y * scale.Z < 0.0f) then List.map (fun (a, b, c) -> (c, b, a)) mesh.indices
+                            else mesh.indices;
                         transform = Matrix4x4.Identity }
+        
+        let mergeIndices indices = 
+            let rec merge offset = 
+                function 
+                | fst :: rest -> (List.map (fun (a, b, c) -> (a + offset, b + offset, c + offset)) fst) @ (merge (offset + fst.Length * 3) rest)
+                | [] -> []
+            merge 0 indices
         
         let mergeMeshes (meshes : MeshData list) = 
             let normalizedMeshes = meshes |> List.map normalizeMesh
@@ -139,7 +165,10 @@ module Core =
               uv0 = merge (fun r -> r.uv0);
               uv1 = merge (fun r -> r.uv1);
               transform = Matrix4x4.Identity;
-              nbFace = meshes |> List.sumBy (fun r -> r.nbFace) }
+              indices = 
+                  normalizedMeshes
+                  |> List.map (fun m -> m.indices)
+                  |> mergeIndices }
         
         let meshList (scene : Scene) (m : Assimp.Matrix4x4) (node : Node) = 
             let rec allMeshes (node : Node) = 
@@ -166,7 +195,7 @@ module Core =
               tangents : byte list;
               uv0 : byte list;
               uv1 : byte list;
-              nbFace : int }
+              indices : (int * int * int) list }
         
         type NumData = 
             { normals : int;
@@ -193,7 +222,7 @@ module Core =
               tangents = nMesh.tangents |> toBytes (fun n -> [ n.X; n.Y; n.Z; 1.0f ]);
               uv0 = nMesh.uv0 |> toBytes (fun n -> [ n.X; n.Y ]);
               uv1 = nMesh.uv1 |> toBytes (fun n -> [ n.X; n.Y ]);
-              nbFace = nMesh.nbFace }
+              indices = nMesh.indices }
         
         let meshGen (meshes : (Material * ByteData) list) = 
             let d = sprintf "%d"
@@ -221,7 +250,7 @@ module Core =
                     match meshes with
                     | [] -> A result
                     | (m, r) :: rest -> 
-                        let indiceLength = r.nbFace * 3 * sizeof<int>
+                        let indiceLength = r.indices.Length * 3 * sizeof<int>
                         result @ [ A [ P("indices", 
                                          A [ P("normal", indiceAttr indiceLength offset);
                                              P("position", indiceAttr indiceLength offset);
@@ -245,9 +274,10 @@ module Core =
                         C(counts.uv1 > 0, P("uv1", vertexAttr counts.uv1 2 offsets.uv1)) ]) ])
             |> printLua 0
         
-        let blobGen mesh = 
+        let blobGen (mesh : ByteData) = 
             let indices = 
-                [ 0..(mesh.nbFace * 3 - 1) ]
+                mesh.indices
+                |> List.collect (fun (a, b, c) -> [ a; b; c ])
                 |> List.map (BitConverter.GetBytes >> Array.toList)
                 |> flatten
             mesh.vertices @ mesh.uv0 @ mesh.normals @ mesh.tangents @ mesh.uv1 @ indices |> List.toArray
@@ -260,7 +290,10 @@ module Core =
                   tangents = merge (fun r -> r.tangents);
                   uv0 = merge (fun r -> r.uv0);
                   uv1 = merge (fun r -> r.uv1);
-                  nbFace = meshes |> List.sumBy (fun r -> r.nbFace) }
+                  indices = 
+                      meshes
+                      |> List.map (fun m -> m.indices)
+                      |> Input.mergeIndices }
             (meshes
              |> List.map (fun (_, meshes) -> meshes)
              |> mergeMeshesBlob

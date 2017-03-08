@@ -83,7 +83,7 @@ type MainWindowViewModel() =
     
     member this.GeoGen (model : Core.Input.ModelInfo) (nodes : Assimp.Node list) = 
         nodes
-        |> List.collect (fun n -> Core.Input.meshList model.scene ((n |> this.Transform)) n)
+        |> List.collect (fun n -> Core.Input.meshList model.scene ((Core.transform n) * (n |> this.Transform)) n)
         |> List.map (fun (_, mesh) -> 
                let g = 
                    new MeshGeometry3D(Positions = (mesh.vertices
@@ -91,7 +91,8 @@ type MainWindowViewModel() =
                                                    |> Point3DCollection), 
                                       Normals = (mesh.normals
                                                  |> List.map (fun n -> new Vector3D(float (n.X), float (n.Y), float (n.Z)))
-                                                 |> Vector3DCollection), TriangleIndices = ([ 0..mesh.nbFace * 3 - 1 ] |> Int32Collection))
+                                                 |> Vector3DCollection), 
+                                      TriangleIndices = ( mesh.indices |> List.collect (fun (a, b, c) -> [a; b; c]) |> Int32Collection))
                new GeometryModel3D(geometry = g, material = new DiffuseMaterial(Brushes.Gold)) :> Model3D)
         |> Model3DCollection
     

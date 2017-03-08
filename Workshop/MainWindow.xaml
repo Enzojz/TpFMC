@@ -21,13 +21,49 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <h:HelixViewport3D ZoomExtentsWhenLoaded="True" Grid.Column="1" Margin="10" Grid.RowSpan="3" Background="AliceBlue" BorderThickness="1" BorderBrush="Gray">
-            <h:DefaultLights/>
+        <h:HelixViewport3D x:Name="vp" ZoomExtentsWhenLoaded="True" Grid.Column="1" Margin="10" Grid.RowSpan="3" Background="AliceBlue" BorderThickness="1" BorderBrush="Gray">
             <h:HelixVisual3D Content="{Binding Geometries}" />
             <h:GridLinesVisual3D Width="10" Length="10" MinorDistance="0.2" MajorDistance="1" Thickness="0.001"/>
             <h:LinesVisual3D Color="Red" Points="0 0 0 -1 0 0"/>
             <h:LinesVisual3D Color="Green" Points="0 0 0 0 -1 0"/>
             <h:LinesVisual3D Color="Blue" Points="0 0 0 0 0 1"/>
+            <h:DirectionalHeadLight Position="{Binding Position, Mode=OneWay, ElementName=vp.DefaultCamera}" Brightness="0.25"/>
+            <h:DirectionalHeadLight Position="{Binding Position, Mode=OneWay, ElementName=vp.DefaultCamera}" Brightness="0.25">
+                <h:DirectionalHeadLight.Transform>
+                    <RotateTransform3D>
+                        <RotateTransform3D.Rotation>
+                            <AxisAngleRotation3D Angle="30" Axis="1 0 0"/>
+                        </RotateTransform3D.Rotation>
+                    </RotateTransform3D>
+                </h:DirectionalHeadLight.Transform>
+            </h:DirectionalHeadLight>
+            <h:DirectionalHeadLight Position="{Binding Position, Mode=OneWay, ElementName=vp.DefaultCamera}" Brightness="0.25">
+                <h:DirectionalHeadLight.Transform>
+                    <RotateTransform3D>
+                        <RotateTransform3D.Rotation>
+                            <AxisAngleRotation3D Angle="30" Axis="-1 0 0"/>
+                        </RotateTransform3D.Rotation>
+                    </RotateTransform3D>
+                </h:DirectionalHeadLight.Transform>
+            </h:DirectionalHeadLight>
+            <h:DirectionalHeadLight Position="{Binding Position, Mode=OneWay, ElementName=vp.DefaultCamera}" Brightness="0.25">
+                <h:DirectionalHeadLight.Transform>
+                    <RotateTransform3D>
+                        <RotateTransform3D.Rotation>
+                            <AxisAngleRotation3D Angle="30" Axis="0 1 0"/>
+                        </RotateTransform3D.Rotation>
+                    </RotateTransform3D>
+                </h:DirectionalHeadLight.Transform>
+            </h:DirectionalHeadLight>
+            <h:DirectionalHeadLight Position="{Binding Position, Mode=OneWay, ElementName=vp.DefaultCamera}" Brightness="0.25">
+                <h:DirectionalHeadLight.Transform>
+                    <RotateTransform3D>
+                        <RotateTransform3D.Rotation>
+                            <AxisAngleRotation3D Angle="30" Axis="0 -1 0"/>
+                        </RotateTransform3D.Rotation>
+                    </RotateTransform3D>
+                </h:DirectionalHeadLight.Transform>
+            </h:DirectionalHeadLight>
         </h:HelixViewport3D>
 
         <Button x:Name="loadButton" Content="Load or Drop files here" Margin="10" AllowDrop="True">
