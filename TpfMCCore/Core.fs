@@ -67,12 +67,14 @@ module Core =
                 |> Seq.collect namedNodes
                 |> Seq.toList
         
-        let transform (node : Node) = 
-            let rec work (node : Node) (tf : Matrix4x4) = 
+        let transforms (node : Node) = 
+            let rec work (node : Node) children = 
                 match node with
-                | null -> tf
-                | _ -> work node.Parent (tf * node.Transform)
-            work node Matrix4x4.Identity
+                | null -> children |> List.rev
+                | _ -> work node.Parent (node.Transform :: children)
+            work node []
+
+        let transform = transforms >> List.fold (*) Matrix4x4.Identity
         
         let read filename = 
             match (IO.File.Exists filename) with
@@ -98,13 +100,28 @@ module Core =
         
         let objectList model = model.scene.RootNode |> namedNodes
         
+        let normalizedVec (n : Vector3D) = 
+            n.Normalize()
+            n
+        
+        let decompose (m : Matrix4x4) = 
+            let mutable quat = Quaternion()
+            let mutable trans = Vector3D()
+            let mutable scale = Vector3D()
+            m.Decompose(&scale, &quat, &trans)
+            (scale, quat, trans)
+        
         let convertMesh (mesh : Mesh) = 
             let rec tuplizeIndice = 
                 function 
                 | a :: b :: c :: rest -> (a, b, c) :: (tuplizeIndice rest)
                 | _ -> []
             
-            let normals = mesh.Normals |> Seq.toList
+            let normals = 
+                mesh.Normals
+                |> Seq.toList
+                |> List.map normalizedVec
+            
             let vertices = mesh.Vertices |> Seq.toList
             let tangents = mesh.Tangents |> Seq.toList
             
@@ -118,7 +135,6 @@ module Core =
                 |> Seq.toList
                 |> List.map (fun n -> Vector2D(n.X, n.Y))
             
-            normals |> List.iter (fun n -> n.Normalize())
             { normals = normals;
               vertices = vertices;
               tangents = tangents;
@@ -131,21 +147,13 @@ module Core =
                   |> tuplizeIndice }
         
         let normalizeMesh (mesh : MeshData) = 
-            let mutable quat = Quaternion()
-            let mutable trans = Vector3D()
-            let mutable scale = Vector3D()
-            mesh.transform.Decompose(&scale, &quat, &trans)
+            let scale, quat, trans = decompose mesh.transform
             let rotM = Matrix4x4.FromScaling(scale) * (quat.GetMatrix() |> Matrix4x4)
             let verM = rotM * Matrix4x4.FromTranslation(trans)
             rotM.Inverse()
             rotM.Transpose()
             { mesh with vertices = List.map ((*) verM) mesh.vertices;
-                        normals = 
-                            mesh.normals
-                            |> List.map ((*) rotM)
-                            |> List.map (fun n -> 
-                                   n.Normalize()
-                                   n);
+                        normals = mesh.normals |> List.map (((*) rotM) >> normalizedVec);
                         indices = 
                             if (scale.X * scale.Y * scale.Z < 0.0f) then List.map (fun (a, b, c) -> (c, b, a)) mesh.indices
                             else mesh.indices;

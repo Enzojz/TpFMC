@@ -19,11 +19,58 @@ type RelayCommand(action : obj -> unit) =
         member x.CanExecute _ = true
         member x.Execute arg = action arg
 
+type Vector3DViewModel(v : Assimp.Vector3D) = 
+    let mutable vector = v
+    
+    member this.X 
+        with get () = vector.X
+        and set (va) = vector.X <- va
+    
+    member this.Y 
+        with get () = vector.Y
+        and set (va) = vector.Y <- va
+    
+    member this.Z 
+        with get () = vector.Z
+        and set (va) = vector.Z <- va
+
+type TransformViewModel(t : Assimp.Matrix4x4) = 
+    let mutable t = (t, true)
+    member this.Transform = fst t
+    
+    member this.IsApplied 
+        with get () = snd t
+        and set (value) = t <- (fst t, value)
+    
+    member this.Name = "x"
+    member this.Scale = Core.Input.decompose (fst t) |> fun (s, _, _) -> s |> Vector3DViewModel
+    member this.Translation = Core.Input.decompose (fst t) |> fun (_, _, s) -> s |> Vector3DViewModel
+
+type MeshViewModel(n : Assimp.Node) = 
+    let mutable node = n
+    let mutable isSelected = true
+    let mutable transforms = ((Core.Input.transforms n) |> List.filter (fun m -> not m.IsIdentity)) @ [ Assimp.Matrix4x4.Identity ] |> List.map TransformViewModel
+    member this.Name = n.Name
+    member this.Transforms = transforms
+    member this.Node = n
+    
+    member this.IsSelected 
+        with get () = isSelected
+        and set (v) = isSelected <- v
+    
+    member this.UserTransform = List.last transforms
+
+type ModelViewModel(e : Core.Input.ModelInfo) = 
+    let mutable entry = e
+    let mutable nodes = e.nodes |> List.map MeshViewModel
+    member this.Nodes = nodes |> List.map (fun n -> n.Node)
+    member this.Entry = e
+    member this.Meshes = nodes
+
 type MainWindowViewModel() = 
-    let mutable entryList : Core.Input.ModelInfo list = []
-    let mutable selectedEntry : Core.Input.ModelInfo option = None
-    let mutable selectedMeshes : Assimp.Node list = []
-    let mutable meshesTransform : (Assimp.Node * Assimp.Matrix4x4) list = []
+    let mutable entryList : ModelViewModel list = []
+    let mutable selectedEntry : ModelViewModel option = None
+    let mutable selectedMesh : MeshViewModel option = None
     let mutable defaultTransform = Assimp.Quaternion(Assimp.Vector3D(1.0f, 0.0f, 0.0f), float32 (Math.PI * 0.5)).GetMatrix() |> Assimp.Matrix4x4
     let mutable console : string list = []
     let propertyChangedEvent = DelegateEvent<PropertyChangedEventHandler>()
@@ -44,27 +91,41 @@ type MainWindowViewModel() =
     member private this.Out str = 
         console <- str :: console
         this.OnPropertyChanged("Console")
-
+    
     member this.EntryList = entryList
-
+    
     member this.SelectedEntry 
         with set (value : obj) = 
             match value with
-            | :? Core.Input.ModelInfo as s -> selectedEntry <- Some s
+            | :? ModelViewModel as s -> selectedEntry <- Some s
             | _ -> selectedEntry <- None
+            this.OnPropertyChanged("Geometries")
+    
+    member this.SelectedMesh 
+        with get () = 
+            match selectedMesh with
+            | None -> null
+            | Some m -> m :> obj
+        and set (value : obj) = 
+            match value with
+            | :? MeshViewModel as s -> selectedMesh <- Some s
+            | _ -> selectedMesh <- None
+            this.OnPropertyChanged("SelectedMesh")
     
     member this.Geometries = 
         match selectedEntry with
         | None -> Model3DGroup()
-        | Some e -> Model3DGroup(Children = this.GeoGen e selectedMeshes)
-
-    member private this.Transform(node : Assimp.Node) = 
-        match List.filter (fst >> ((=) node)) meshesTransform with
-        | [ (_, tr) ] -> tr * defaultTransform
-        | _ -> defaultTransform
+        | Some e -> Model3DGroup(Children = this.GeoGen e (e.Meshes |> List.filter (fun n -> n.IsSelected)))
     
-    member private this.GeoGen(model : Core.Input.ModelInfo) = 
-        List.collect (fun n -> Core.Input.meshList model.scene ((Core.Input.transform n) * (n |> this.Transform)) n)
+    member private this.Transform(node : MeshViewModel) = 
+        (node.Transforms
+         |> List.filter (fun t -> t.IsApplied)
+         |> List.map (fun t -> t.Transform)
+         |> List.fold (*) Assimp.Matrix4x4.Identity)
+        * defaultTransform
+    
+    member private this.GeoGen(model : ModelViewModel) = 
+        List.collect (fun n -> Core.Input.meshList model.Entry.scene (n |> this.Transform) n.Node)
         >> List.map (fun (_, mesh) -> 
                let g = 
                    MeshGeometry3D(Positions = (mesh.vertices
@@ -79,20 +140,17 @@ type MainWindowViewModel() =
                GeometryModel3D(geometry = g, material = DiffuseMaterial(Brushes.Gold)) :> Model3D)
         >> Model3DCollection
     
-    member this.MeshesSelected = 
-        RelayCommand(fun selectedItems -> 
-            selectedMeshes <- ((selectedItems :?> System.Collections.IList).Cast<Assimp.Node>() |> Seq.toList)
-            this.OnPropertyChanged("Geometries"))
+    member this.MeshesSelected = RelayCommand(fun _ -> this.OnPropertyChanged("Geometries"))
     
     member this.Convert = 
         RelayCommand(fun _ -> 
             entryList |> List.iter (fun e -> 
-                             e.nodes
-                             |> List.map (fun n -> Core.Output.generateMeshes e ((Core.Input.transform n) * (n |> this.Transform)) n)
+                             e.Meshes
+                             |> List.map (fun n -> Core.Output.generateMeshes e.Entry (n |> this.Transform) n.Node)
                              |> List.iter (fun (blob, mesh) -> 
-                                    this.Out(e.output + blob)
-                                    this.Out(e.output + mesh))))
-
+                                    this.Out(e.Entry.output + blob)
+                                    this.Out(e.Entry.output + mesh))))
+    
     member private this.LoadFiles filenames = 
         entryList <- filenames
                      |> List.map Core.Input.read
@@ -101,7 +159,7 @@ type MainWindowViewModel() =
                             | Core.Input.Result.Succsed _ -> true)
                      |> (fun (suc, err) -> 
                      err |> List.iter (fun (Core.Input.Result.Error e) -> this.Out(e))
-                     suc |> List.map (fun (Core.Input.Result.Succsed s) -> s))
+                     suc |> List.map (fun (Core.Input.Result.Succsed s) -> ModelViewModel s))
         this.OnPropertyChanged("EntryList")
     
     member this.DropCommand = 
@@ -118,4 +176,3 @@ type MainWindowViewModel() =
             diag.FileNames
             |> Seq.toList
             |> this.LoadFiles)
-    

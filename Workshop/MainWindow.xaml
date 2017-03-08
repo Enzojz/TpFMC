@@ -82,27 +82,28 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel>
-                            <TextBlock Text="{Binding filename}"/>
+                            <TextBlock Text="{Binding Entry.filename}"/>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
         </GroupBox>
         <GroupBox x:Name="meshList" Header="Mesh list" Margin="5" Grid.Row="2">
-            <ListBox x:Name="meshes" Margin="5" DataContext="{Binding SelectedItem, ElementName=importFiles}" ItemsSource="{Binding nodes}" SelectionMode="Extended">
+            <ListBox x:Name="meshes" Margin="5" DataContext="{Binding SelectedItem, ElementName=importFiles}" ItemsSource="{Binding Meshes}" SelectedItem="{Binding DataContext.SelectedMesh, ElementName=root}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                            <CheckBox IsChecked="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"/>
+                        <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBoxItem}}">
+                            <CheckBox IsChecked="{Binding IsSelected}">
+                                <i:Interaction.Triggers>
+                                    <i:EventTrigger EventName="Click">
+                                        <Command:EventToCommand Command="{Binding DataContext.MeshesSelected, ElementName=root}"/>
+                                    </i:EventTrigger>
+                                </i:Interaction.Triggers>
+                            </CheckBox>
                             <TextBlock Margin="5, 0, 0, 0" Text="{Binding Name}"/>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
-                <i:Interaction.Triggers>
-                    <i:EventTrigger EventName="SelectionChanged">
-                        <Command:EventToCommand Command="{Binding DataContext.MeshesSelected, ElementName=importFiles}" CommandParameter="{Binding SelectedItems, ElementName=meshes}" />
-                    </i:EventTrigger>
-                </i:Interaction.Triggers>
             </ListBox>
         </GroupBox>
         <GroupBox x:Name="Output" Header="Output" Margin="5" Grid.Row="3" Grid.ColumnSpan="2">
@@ -115,6 +116,70 @@
                 </i:EventTrigger>
             </i:Interaction.Triggers>
         </Button>
+        <GroupBox Header="Transformation" Grid.Column="2" Grid.RowSpan="3" Margin="10">
+            <Grid VerticalAlignment="Top" Margin="5" DataContext="{Binding DataContext.SelectedMesh, Mode=OneWay, FallbackValue=null, ElementName=root}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="1*"/>
+                </Grid.ColumnDefinitions>
+                <Label Content="Scales" Grid.ColumnSpan="3" />
+                <Label Content="X" Grid.Column="0" Grid.Row="1" />
+                <Label Content="Y" Grid.Column="1" Grid.Row="1" />
+                <Label Content="Z" Grid.Column="2" Grid.Row="1" />
+                <Label Content="Rotations" Grid.Row="3" Grid.ColumnSpan="3" />
+                <Label Content="X" Grid.Column="0" Grid.Row="4" />
+                <Label Content="Y" Grid.Column="1" Grid.Row="4" />
+                <Label Content="Z" Grid.Column="2" Grid.Row="4" />
+                <Label Content="Translations" Grid.Row="6" Grid.ColumnSpan="3" />
+                <Label Content="X"  Grid.Column="0" Grid.Row="7" />
+                <Label Content="Y"  Grid.Column="1" Grid.Row="7" />
+                <Label Content="Z"  Grid.Column="2" Grid.Row="7" />
+                <Label Content="Model Transforms" Grid.Row="9" Grid.ColumnSpan="3" />
+
+                <TextBox Margin="5" Grid.Column="0" Grid.Row="2" Text="{Binding UserTransform.Scale.X, Mode=TwoWay, FallbackValue=''}" />
+                <TextBox Margin="5" Grid.Column="1" Grid.Row="2" Text="{Binding UserTransform.Scale.Y, Mode=TwoWay, FallbackValue=''}" />
+                <TextBox Margin="5" Grid.Column="2" Grid.Row="2" Text="{Binding UserTransform.Scale.Z, Mode=TwoWay, FallbackValue=''}" />
+
+                <TextBox Margin="5" Grid.Column="0" Grid.Row="5" />
+                <TextBox Margin="5" Grid.Column="1" Grid.Row="5" />
+                <TextBox Margin="5" Grid.Column="2" Grid.Row="5" />
+
+                <TextBox Margin="5" Grid.Column="0" Grid.Row="8" Text="{Binding UserTransform.Translation.X, Mode=TwoWay, FallbackValue=''}" />
+                <TextBox Margin="5" Grid.Column="1" Grid.Row="8" Text="{Binding UserTransform.Translation.Y, Mode=TwoWay, FallbackValue=''}" />
+                <TextBox Margin="5" Grid.Column="2" Grid.Row="8" Text="{Binding UserTransform.Translation.Z, Mode=TwoWay, FallbackValue=''}" />
+
+                <ListView Margin="5" Grid.Row="10" Grid.ColumnSpan="3" ItemsSource="{Binding Transforms}" VerticalAlignment="Top">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding IsApplied, Mode=TwoWay}">
+                                    <i:Interaction.Triggers>
+                                        <i:EventTrigger EventName="Click">
+                                            <Command:EventToCommand Command="{Binding DataContext.MeshesSelected, ElementName=root}"/>
+                                        </i:EventTrigger>
+                                    </i:Interaction.Triggers>
+                                </CheckBox>
+                                <TextBlock Margin="5, 0, 0, 0" >Transform X</TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </Grid>
+        </GroupBox>
     </Grid>
 
 </Window>
