@@ -99,24 +99,13 @@ type MeshViewModel(n : Assimp.Node) =
     let mutable node = n
     let mutable isSelected = true
     let mutable transforms = ((Core.Input.transforms n) |> List.filter (fun m -> not m.IsIdentity)) @ [ Assimp.Matrix4x4.Identity ] |> List.map TransformViewModel
-    
-    let propertyChangedEvent = DelegateEvent<PropertyChangedEventHandler>()
-    interface INotifyPropertyChanged with
-        [<CLIEvent>]
-        member x.PropertyChanged = propertyChangedEvent.Publish
-    
-    member x.OnPropertyChanged propertyName = 
-        propertyChangedEvent.Trigger([| x;
-                                        PropertyChangedEventArgs(propertyName) |])
     member this.Name = n.Name
     member this.Transforms = transforms
     member this.Node = n
     
     member this.IsSelected 
         with get () = isSelected
-        and set (v) =
-         isSelected <- v
-         this.OnPropertyChanged("IsSelected")
+        and set (v) = isSelected <- v
     
     member this.UserTransform = List.last transforms
 
@@ -240,26 +229,7 @@ type MainWindowViewModel() =
     member this.SelectAll = 
         RelayCommand(fun _ -> 
             match selectedEntry with
-            | None -> ()
-            | Some e -> e.Meshes |> List.iter (fun m -> m.IsSelected <- true)
-            this.OnPropertyChanged("Geometries")
-        )
-
-    member this.SelectNone = 
-        RelayCommand(fun _ -> 
-            match selectedEntry with
-            | None -> ()
-            | Some e -> e.Meshes |> List.iter (fun m -> m.IsSelected <- false)
-            this.OnPropertyChanged("Geometries")
-        )
-
-        
-    member this.SelectOnlyItem = 
-        RelayCommand(fun (a : obj) -> 
-            match selectedEntry with
-            | None -> ()
-            | Some e -> e.Meshes |> List.iter (fun m -> m.IsSelected <- false)
-            let m = a :?> MeshViewModel
-            m.IsSelected <- true
+            | :? ModelViewModel as s -> selectedEntry <- Some s
+            | _ -> selectedEntry <- None
             this.OnPropertyChanged("Geometries")
         )

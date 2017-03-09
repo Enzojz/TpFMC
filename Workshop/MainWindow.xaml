@@ -94,7 +94,7 @@
             </h:DirectionalHeadLight>
         </h:HelixViewport3D>
 
-        <Button x:Name="loadButton" Content="Load or Drop files here" Margin="10" AllowDrop="True">
+        <Button x:Name="loadButton" Padding="5" Content="Load or Drop files here" Margin="10" AllowDrop="True">
             <i:Interaction.Triggers>
                 <i:EventTrigger EventName="Drop">
                     <Command:EventToCommand Command="{Binding DropCommand}" PassEventArgsToCommand="True"/>
@@ -116,11 +116,37 @@
                 </ListBox.ItemTemplate>
             </ListBox>
         </GroupBox>
-        <GroupBox x:Name="meshList" Header="Mesh list" Margin="5" Grid.Row="2">
+        <GroupBox x:Name="meshList" Header="Mesh list" Margin="5" Grid.Row="2" Grid.RowSpan="2">
             <ListBox x:Name="meshes" Margin="5" DataContext="{Binding SelectedItem, ElementName=importFiles}" ItemsSource="{Binding Meshes}" SelectedItem="{Binding DataContext.SelectedMesh, ElementName=root}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBoxItem}}">
+                        <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Tag="{Binding DataContext, ElementName=root}">
+                            <StackPanel.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Select all">
+                                        <i:Interaction.Triggers>
+                                            <i:EventTrigger EventName="Click">
+                                                <Command:EventToCommand Command="{Binding PlacementTarget.Tag.SelectAll, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                            </i:EventTrigger>
+                                        </i:Interaction.Triggers>
+                                    </MenuItem>
+                                    <MenuItem Header="Select none">
+                                        <i:Interaction.Triggers>
+                                            <i:EventTrigger EventName="Click">
+                                                <Command:EventToCommand Command="{Binding PlacementTarget.Tag.SelectNone, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                            </i:EventTrigger>
+                                        </i:Interaction.Triggers>
+                                    </MenuItem>
+                                    <MenuItem Header="Select this only">
+                                        <i:Interaction.Triggers>
+                                            <i:EventTrigger EventName="Click">
+                                                <Command:EventToCommand Command="{Binding PlacementTarget.Tag.SelectOnlyItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" 
+                                                                        CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                            </i:EventTrigger>
+                                        </i:Interaction.Triggers>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </StackPanel.ContextMenu>
                             <CheckBox IsChecked="{Binding IsSelected}">
                                 <i:Interaction.Triggers>
                                     <i:EventTrigger EventName="Click">
@@ -134,8 +160,8 @@
                 </ListBox.ItemTemplate>
             </ListBox>
         </GroupBox>
-        <GroupBox x:Name="Output" Header="Output" Margin="5" Grid.Row="3" Grid.ColumnSpan="2">
-            <TextBox x:Name="Console" Margin="5" Grid.Row="3" Text="{Binding DataContext.Console, Mode=OneWay, ElementName=root}"/>
+        <GroupBox x:Name="Output" Header="Output" Margin="5" Grid.Column="1" Grid.Row="3">
+            <TextBox x:Name="Console" Margin="5" Text="{Binding DataContext.Console, Mode=OneWay, ElementName=root}"/>
         </GroupBox>
         <Button Content="Convert" Margin="10" Grid.Column="2" Grid.Row="3">
             <i:Interaction.Triggers>

@@ -61,10 +61,9 @@
     <Error Condition="!Exists('..\packages\AssimpNet.3.3.2\build\AssimpNet.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\AssimpNet.3.3.2\build\AssimpNet.targets'))" />
     <Error Condition="!Exists('..\packages\Fody.1.28.3\build\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Fody.1.28.3\build\Fody.targets'))" />
   </Target>
+  <Import Project="..\packages\Fody.1.28.3\build\Fody.targets" Condition="Exists('..\packages\Fody.1.28.3\build\Fody.targets')" />
   <ItemGroup>
     <Compile Include="MainWindowViewModel.fs" />
-    <Compile Include="DegRadConverter.fs" />
-    <Compile Include="App.fs" />
     <Resource Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -74,9 +73,12 @@
     </Content>
     <Content Include="packages.config" />
     <Content Include="FodyWeavers.xml" />
+    <Compile Include="App.fs" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="Accessibility" />
+    <Reference Include="Accessibility">
+      <Private>False</Private>
+    </Reference>
     <Reference Include="AssimpNet">
       <HintPath>..\packages\AssimpNet.3.3.2\lib\net45\AssimpNet.dll</HintPath>
       <Private>True</Private>
@@ -128,7 +130,6 @@
       <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="..\packages\Fody.1.28.3\build\Fody.targets" Condition="Exists('..\packages\Fody.1.28.3\build\Fody.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
 	     Other similar extension points exist, see Microsoft.Common.targets.
 	<Target Name="BeforeBuild">
