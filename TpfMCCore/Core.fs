@@ -73,7 +73,7 @@ module Core =
                 | null -> children |> List.rev
                 | _ -> work node.Parent (node.Transform :: children)
             work node []
-
+        
         let transform = transforms >> List.fold (*) Matrix4x4.Identity
         
         let read filename = 
@@ -110,6 +110,15 @@ module Core =
             let mutable scale = Vector3D()
             m.Decompose(&scale, &quat, &trans)
             (scale, quat, trans)
+        
+        let quaternion2Euler (quat : Assimp.Quaternion) = 
+            let (x, y, z, w) = (float (quat.X), float (quat.Y), float (quat.Z), float (quat.W))
+            let yaw = Math.Atan2(2.0 * w * z + 2.0 * x * y, 1.0 - 2.0 * y * y - 2.0 * z * z) |> float32
+            let pitch = Math.Asin(2.0 * w * y - 2.0 * z * x) |> float32
+            let roll = Math.Atan2(2.0 * w * x + 2.0 * y * z, 1.0 - 2.0 * x * x - 2.0 * y * y) |> float32
+            Vector3D(roll, yaw, pitch)
+        
+        let euler2Quatenion (vec : Vector3D) = Quaternion(vec.Z, vec.Y, vec.X)
         
         let convertMesh (mesh : Mesh) = 
             let rec tuplizeIndice = 

@@ -63,11 +63,8 @@
   </Target>
   <ItemGroup>
     <Compile Include="MainWindowViewModel.fs" />
+    <Compile Include="DegRadConverter.fs" />
     <Compile Include="App.fs" />
-    <Resource Include="ApplicationResources.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Resource>
     <Resource Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

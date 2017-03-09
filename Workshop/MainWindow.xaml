@@ -3,16 +3,44 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
         xmlns:h="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
+        xmlns:e="clr-namespace:Xceed.Wpf.Toolkit;assembly=Xceed.Wpf.Toolkit"
         xmlns:t="clr-namespace:TpfMC"
         xmlns:Command="clr-namespace:GalaSoft.MvvmLight.Command;assembly=GalaSoft.MvvmLight.Platform"
         Title="Transport Fever Model Workshop" Height="800" Width="1500"
         x:Name="root"   
     >
+    <Window.Resources>
+        <Style x:Key="ValueBox" BasedOn="{x:Null}" TargetType="{x:Type TextBox}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+            </Style.Triggers>
+            <Style.Setters>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type TextBox}">
+                            <Border Name="Bd" SnapsToDevicePixels="true" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}">
+                                <ScrollViewer x:Name="PART_ContentHost" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                                    <i:Interaction.Triggers>
+                                        <i:EventTrigger EventName="LostFocus">
+                                            <Command:EventToCommand Command="{Binding DataContext.UpdateGeometries, ElementName=root}"/>
+                                        </i:EventTrigger>
+                                    </i:Interaction.Triggers>
+                                </ScrollViewer>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+
+            </Style.Setters>
+        </Style>
+    </Window.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="1*" />
-            <ColumnDefinition Width="5*" />
-            <ColumnDefinition Width="1*" />
+            <ColumnDefinition Width="auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="auto" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="60" />
@@ -96,7 +124,7 @@
                             <CheckBox IsChecked="{Binding IsSelected}">
                                 <i:Interaction.Triggers>
                                     <i:EventTrigger EventName="Click">
-                                        <Command:EventToCommand Command="{Binding DataContext.MeshesSelected, ElementName=root}"/>
+                                        <Command:EventToCommand Command="{Binding DataContext.UpdateGeometries, ElementName=root}"/>
                                     </i:EventTrigger>
                                 </i:Interaction.Triggers>
                             </CheckBox>
@@ -117,18 +145,18 @@
             </i:Interaction.Triggers>
         </Button>
         <GroupBox Header="Transformation" Grid.Column="2" Grid.RowSpan="3" Margin="10">
-            <Grid VerticalAlignment="Top" Margin="5" DataContext="{Binding DataContext.SelectedMesh, Mode=OneWay, FallbackValue=null, ElementName=root}">
+            <Grid Margin="5" DataContext="{Binding DataContext.SelectedMesh, Mode=OneWay, FallbackValue=null, ElementName=root}">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="auto"/>
                     <RowDefinition Height="auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
@@ -141,39 +169,53 @@
                 <Label Content="Y" Grid.Column="1" Grid.Row="1" />
                 <Label Content="Z" Grid.Column="2" Grid.Row="1" />
                 <Label Content="Rotations" Grid.Row="3" Grid.ColumnSpan="3" />
-                <Label Content="X" Grid.Column="0" Grid.Row="4" />
-                <Label Content="Y" Grid.Column="1" Grid.Row="4" />
-                <Label Content="Z" Grid.Column="2" Grid.Row="4" />
+                <Label Content="X (Roll)" Grid.Column="0" Grid.Row="4" />
+                <Label Content="Y (Pitch)" Grid.Column="1" Grid.Row="4" />
+                <Label Content="Z (Yaw)" Grid.Column="2" Grid.Row="4" />
                 <Label Content="Translations" Grid.Row="6" Grid.ColumnSpan="3" />
                 <Label Content="X"  Grid.Column="0" Grid.Row="7" />
                 <Label Content="Y"  Grid.Column="1" Grid.Row="7" />
                 <Label Content="Z"  Grid.Column="2" Grid.Row="7" />
                 <Label Content="Model Transforms" Grid.Row="9" Grid.ColumnSpan="3" />
 
-                <TextBox Margin="5" Grid.Column="0" Grid.Row="2" Text="{Binding UserTransform.Scale.X, Mode=TwoWay, FallbackValue=''}" />
-                <TextBox Margin="5" Grid.Column="1" Grid.Row="2" Text="{Binding UserTransform.Scale.Y, Mode=TwoWay, FallbackValue=''}" />
-                <TextBox Margin="5" Grid.Column="2" Grid.Row="2" Text="{Binding UserTransform.Scale.Z, Mode=TwoWay, FallbackValue=''}" />
+                <TextBox Margin="5" Grid.Column="0" Grid.Row="2" Text="{Binding UserTransform.Scale.X, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
+                <TextBox Margin="5" Grid.Column="1" Grid.Row="2" Text="{Binding UserTransform.Scale.Y, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
+                <TextBox Margin="5" Grid.Column="2" Grid.Row="2" Text="{Binding UserTransform.Scale.Z, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
 
-                <TextBox Margin="5" Grid.Column="0" Grid.Row="5" />
-                <TextBox Margin="5" Grid.Column="1" Grid.Row="5" />
-                <TextBox Margin="5" Grid.Column="2" Grid.Row="5" />
+                <TextBox Margin="5" Grid.Column="0" Grid.Row="5" Text="{Binding UserTransform.Rotation.X, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
+                <TextBox Margin="5" Grid.Column="1" Grid.Row="5" Text="{Binding UserTransform.Rotation.Y, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
+                <TextBox Margin="5" Grid.Column="2" Grid.Row="5" Text="{Binding UserTransform.Rotation.Z, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
 
-                <TextBox Margin="5" Grid.Column="0" Grid.Row="8" Text="{Binding UserTransform.Translation.X, Mode=TwoWay, FallbackValue=''}" />
-                <TextBox Margin="5" Grid.Column="1" Grid.Row="8" Text="{Binding UserTransform.Translation.Y, Mode=TwoWay, FallbackValue=''}" />
-                <TextBox Margin="5" Grid.Column="2" Grid.Row="8" Text="{Binding UserTransform.Translation.Z, Mode=TwoWay, FallbackValue=''}" />
+                <TextBox Margin="5" Grid.Column="0" Grid.Row="8" Text="{Binding UserTransform.Translation.X, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
+                <TextBox Margin="5" Grid.Column="1" Grid.Row="8" Text="{Binding UserTransform.Translation.Y, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
+                <TextBox Margin="5" Grid.Column="2" Grid.Row="8" Text="{Binding UserTransform.Translation.Z, Mode=TwoWay, FallbackValue=''}" Style="{StaticResource ValueBox}"/>
 
-                <ListView Margin="5" Grid.Row="10" Grid.ColumnSpan="3" ItemsSource="{Binding Transforms}" VerticalAlignment="Top">
+                <ListView Margin="5" Grid.Row="10" Grid.ColumnSpan="3" ItemsSource="{Binding Transforms}" VerticalAlignment="Stretch">
                     <ListView.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
                                 <CheckBox IsChecked="{Binding IsApplied, Mode=TwoWay}">
                                     <i:Interaction.Triggers>
                                         <i:EventTrigger EventName="Click">
-                                            <Command:EventToCommand Command="{Binding DataContext.MeshesSelected, ElementName=root}"/>
+                                            <Command:EventToCommand Command="{Binding DataContext.UpdateGeometries, ElementName=root}"/>
                                         </i:EventTrigger>
                                     </i:Interaction.Triggers>
                                 </CheckBox>
-                                <TextBlock Margin="5, 0, 0, 0" >Transform X</TextBlock>
+                                <ListView Margin="5, 0, 0, 0" ItemsSource="{Binding Description}" Background="Transparent" BorderThickness="0" FontFamily="Consolas">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="{x:Type ListViewItem}">
+                                                        <ContentPresenter />
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                </ListView>
                             </StackPanel>
                         </DataTemplate>
                     </ListView.ItemTemplate>

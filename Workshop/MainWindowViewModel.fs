@@ -33,18 +33,47 @@ type Vector3DViewModel(v : Assimp.Vector3D) =
     member this.Z 
         with get () = vector.Z
         and set (va) = vector.Z <- va
+    
+    member this.Vector = vector
 
 type TransformViewModel(t : Assimp.Matrix4x4) = 
     let mutable t = (t, true)
-    member this.Transform = fst t
+    let mutable scale = Core.Input.decompose (fst t) |> fun (s, _, _) -> s |> Vector3DViewModel
+    let mutable translation = Core.Input.decompose (fst t) |> fun (_, _, s) -> s |> Vector3DViewModel
+    
+    let mutable rotation = 
+        Core.Input.decompose (fst t)
+        |> (fun (_, q, _) -> q)
+        |> Core.Input.quaternion2Euler
+        |> Vector3DViewModel
+    
+    member this.Transform = 
+        Assimp.Matrix4x4.FromScaling(scale.Vector) * ((rotation.Vector |> Core.Input.euler2Quatenion).GetMatrix() |> Assimp.Matrix4x4) 
+        * Assimp.Matrix4x4.FromTranslation(translation.Vector)
     
     member this.IsApplied 
         with get () = snd t
         and set (value) = t <- (fst t, value)
     
-    member this.Name = "x"
-    member this.Scale = Core.Input.decompose (fst t) |> fun (s, _, _) -> s |> Vector3DViewModel
-    member this.Translation = Core.Input.decompose (fst t) |> fun (_, _, s) -> s |> Vector3DViewModel
+    member this.Scale = scale
+    member this.Translation = translation
+    member this.Rotation = rotation
+    member this.Description = 
+        let rad2deg (v : float32) = v / float32(Math.PI) * 180.0f
+        [ (this.Scale.Vector |> (fun v -> 
+           if (v.X = 1.0f && v.Y = 1.0f && v.Z = 1.0f) then None
+           else Some(Printf.sprintf "S: (% 6.2f, % 6.2f, % 6.2f)" v.X v.Y v.Z)));
+          (this.Rotation.Vector |> (fun v -> 
+           if (v.X = 0.0f && v.Y = 0.0f && v.Z = 0.0f) then None
+           else Some(Printf.sprintf "R: (% 6.2f, % 6.2f, % 6.2f)" (rad2deg v.X) (rad2deg v.Y) (rad2deg v.Z))));
+          (this.Translation.Vector |> (fun v -> 
+           if (v.X = 0.0f && v.Y = 0.0f && v.Z = 0.0f) then None
+           else Some(Printf.sprintf "T: (% 6.2f, % 6.2f, % 6.2f)" v.X v.Y v.Z))) ]
+        |> List.filter (function 
+               | None -> false
+               | Some _ -> true)
+        |> List.map (fun (Some s) -> s)
+        
 
 type MeshViewModel(n : Assimp.Node) = 
     let mutable node = n
@@ -140,7 +169,7 @@ type MainWindowViewModel() =
                GeometryModel3D(geometry = g, material = DiffuseMaterial(Brushes.Gold)) :> Model3D)
         >> Model3DCollection
     
-    member this.MeshesSelected = RelayCommand(fun _ -> this.OnPropertyChanged("Geometries"))
+    member this.UpdateGeometries = RelayCommand(fun _ -> this.OnPropertyChanged("Geometries"))
     
     member this.Convert = 
         RelayCommand(fun _ -> 
