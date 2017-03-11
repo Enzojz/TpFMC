@@ -76,14 +76,17 @@ module Core =
         
         let transform = transforms >> List.fold (*) Matrix4x4.Identity
         
-        let read filename = 
+        let read callback filename = 
             match (IO.File.Exists filename) with
             | false -> Error(filename + " doesn't exists!")
             | true -> 
                 let suffix = IO.Path.GetExtension(filename)
                 let assimpImporter = new AssimpContext()
+                let log = new Assimp.LogStream(LoggingCallback(fun msg _ -> callback ("Assimp: " + (msg.TrimEnd(Environment.NewLine.ToCharArray())))))
+                log.Attach()
                 match assimpImporter.IsImportFormatSupported(suffix) with
                 | false -> 
+                    log.Detach()
                     assimpImporter.Dispose()
                     Error("Format not supported:" + suffix)
                 | true -> 
@@ -95,6 +98,7 @@ module Core =
                           scene = scene;
                           output = IO.Path.GetDirectoryName(IO.Path.GetFullPath(filename)) + @"\" + IO.Path.GetFileName(filename).Replace(".", "_") + @"\";
                           nodes = nodes }
+                    log.Detach()
                     assimpImporter.Dispose()
                     Succsed ret
         
@@ -121,10 +125,12 @@ module Core =
         let euler2Quatenion (vec : Vector3D) = Quaternion(vec.Z, vec.Y, vec.X)
         
         let convertMesh (mesh : Mesh) = 
-            let rec tuplizeIndice = 
-                function 
-                | a :: b :: c :: rest -> (a, b, c) :: (tuplizeIndice rest)
-                | _ -> []
+            let tuplizeIndice indices = 
+                let rec work result = 
+                    function 
+                    | a :: b :: c :: rest -> work ((a, b, c) :: result) rest
+                    | _ -> result |> List.rev
+                work [] indices
             
             let normals = 
                 mesh.Normals
@@ -137,12 +143,12 @@ module Core =
             let uv0 = 
                 (Seq.item 0 mesh.TextureCoordinateChannels)
                 |> Seq.toList
-                |> List.map (fun n -> Vector2D(n.X, n.Y))
+                |> List.map (fun n -> Vector2D(n.X, 1.0f - n.Y))
             
             let uv1 = 
                 (Seq.item 1 mesh.TextureCoordinateChannels)
                 |> Seq.toList
-                |> List.map (fun n -> Vector2D(n.X, n.Y))
+                |> List.map (fun n -> Vector2D(n.X, 1.0f - n.Y))
             
             { normals = normals;
               vertices = vertices;

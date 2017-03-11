@@ -28,12 +28,13 @@ let main argv =
             printfn "Usage: tpfmc [filename]"
             printfn "or drag/drop the file in the console window."
             [ Console.ReadLine() ]
-        | _ -> argv |> Array.toList
+        | _ -> argv |> Array.toList 
     while start do
         files
+        |> List.map (fun f -> f.TrimStart([|'"'|]).TrimEnd([|'"'|]))
         |> List.map (fun filename -> 
                async { 
-                   match Core.Input.read filename with
+                   match (Core.Input.read Console.WriteLine filename) with
                    | Core.Input.Error err -> printfn "%s" err
                    | Core.Input.Succsed info -> convert info 
                })

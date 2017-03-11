@@ -10,29 +10,6 @@ open System.Windows.Media.Media3D
 open System.Windows.Media
 open System.Windows.Media.Imaging
 open Pfim
-open System.Diagnostics
-
-module Calculates = 
-    let hsv2Rgb h s v = 
-        if (h < 0) || (h > 360) || s > 1.0 || s < 0.0 || v > 1.0 || v < 0.0 then failwith "Parameters out of range!"
-        let hi = (h / 60) % 6
-        let f = float (h) / 60.0 - float (hi)
-        let p = v * (1.0 - s)
-        let q = v * (1.0 - f * s)
-        let t = v * (1.0 - (1.0 - f) * s)
-        
-        let (r, g, b) = 
-            match hi with
-            | 0 -> (v, t, p)
-            | 1 -> (q, v, p)
-            | 2 -> (p, v, t)
-            | 3 -> (p, q, v)
-            | 4 -> (t, p, v)
-            | _ -> (v, p, q)
-        (int (r * 256.0), int (g * 256.0), int (b * 256.0))
-    
-    let rad2Deg (v : float32) = v / float32 (Math.PI) * 180.0f
-    let deg2Rad (v : float32) = v / 180.0f * float32 (Math.PI)
 
 type RelayCommand(action : obj -> unit) = 
     let event = DelegateEvent<EventHandler>()
@@ -44,32 +21,22 @@ type RelayCommand(action : obj -> unit) =
         member x.CanExecute _ = true
         member x.Execute arg = action arg
 
-[<AbstractClass>]
-type ViewModelBase() = 
-    let propertyChangedEvent = DelegateEvent<PropertyChangedEventHandler>()
-    
-    interface INotifyPropertyChanged with
-        [<CLIEvent>]
-        member x.PropertyChanged = propertyChangedEvent.Publish
-    
-    member x.OnPropertyChanged propertyName = 
-        propertyChangedEvent.Trigger([| x;
-                                        PropertyChangedEventArgs(propertyName) |])
-
 type VectorRad3DViewModel(v : Assimp.Vector3D) = 
     let mutable vector = v
+    let rad2Deg (v : float32) = v / float32 (Math.PI) * 180.0f
+    let deg2Rad (v : float32) = v / 180.0f * float32 (Math.PI)
     
     member this.X 
-        with get () = Calculates.rad2Deg vector.X
-        and set (va) = vector.X <- Calculates.deg2Rad va
+        with get () = rad2Deg vector.X
+        and set (va) = vector.X <- deg2Rad va
     
     member this.Y 
-        with get () = Calculates.rad2Deg vector.Y
-        and set (va) = vector.Y <- Calculates.deg2Rad va
+        with get () = rad2Deg vector.Y
+        and set (va) = vector.Y <- deg2Rad va
     
     member this.Z 
-        with get () = Calculates.rad2Deg vector.Z
-        and set (va) = vector.Z <- Calculates.deg2Rad va
+        with get () = rad2Deg vector.Z
+        and set (va) = vector.Z <- deg2Rad va
     
     member this.Vector = vector
 
@@ -113,12 +80,13 @@ type TransformViewModel(t : Assimp.Matrix4x4) =
     member this.Translation = translation
     member this.Rotation = rotation
     member this.Description = 
+        let rad2deg (v : float32) = v / float32 (Math.PI) * 180.0f
         [ (this.Scale.Vector |> (fun v -> 
            if (v.X = 1.0f && v.Y = 1.0f && v.Z = 1.0f) then None
            else Some(Printf.sprintf "S: (% 6.2f, % 6.2f, % 6.2f)" v.X v.Y v.Z)));
           (this.Rotation.Vector |> (fun v -> 
            if (v.X = 0.0f && v.Y = 0.0f && v.Z = 0.0f) then None
-           else Some(Printf.sprintf "R: (% 6.2f, % 6.2f, % 6.2f)" (Calculates.rad2Deg v.X) (Calculates.rad2Deg v.Y) (Calculates.rad2Deg v.Z))));
+           else Some(Printf.sprintf "R: (% 6.2f, % 6.2f, % 6.2f)" (rad2deg v.X) (rad2deg v.Y) (rad2deg v.Z))));
           (this.Translation.Vector |> (fun v -> 
            if (v.X = 0.0f && v.Y = 0.0f && v.Z = 0.0f) then None
            else Some(Printf.sprintf "T: (% 6.2f, % 6.2f, % 6.2f)" v.X v.Y v.Z))) ]
@@ -128,11 +96,19 @@ type TransformViewModel(t : Assimp.Matrix4x4) =
         |> List.map (fun (Some s) -> s)
 
 type MeshViewModel(n : Assimp.Node) = 
-    inherit ViewModelBase()
     let mutable node = n
-    let mutable hue = 40
     let mutable isSelected = true
     let mutable transforms = ((Core.Input.transforms n) |> List.filter (fun m -> not m.IsIdentity)) @ [ Assimp.Matrix4x4.Identity ] |> List.map TransformViewModel
+    let propertyChangedEvent = DelegateEvent<PropertyChangedEventHandler>()
+    
+    interface INotifyPropertyChanged with
+        [<CLIEvent>]
+        member x.PropertyChanged = propertyChangedEvent.Publish
+    
+    member x.OnPropertyChanged propertyName = 
+        propertyChangedEvent.Trigger([| x;
+                                        PropertyChangedEventArgs(propertyName) |])
+    
     member this.Name = n.Name
     member this.Transforms = transforms
     member this.Node = n
@@ -144,24 +120,15 @@ type MeshViewModel(n : Assimp.Node) =
             this.OnPropertyChanged("IsSelected")
     
     member this.UserTransform = List.last transforms
-    
-    member this.Hue 
-        with get () = hue
-        and set (v) = hue <- v
-    
-    member this.Color = 
-        let (r, g, b) = Calculates.hsv2Rgb hue 0.75 0.75
-        Color.FromRgb(BitConverter.GetBytes(r).[0], BitConverter.GetBytes(g).[0], BitConverter.GetBytes(b).[0])
 
 type ModelViewModel(e : Core.Input.ModelInfo) = 
     let mutable entry = e
-    let mutable nodes = e.nodes |> List.mapi (fun i m -> MeshViewModel(m, Hue = i * 360 / (e.nodes.Length + 1)))
+    let mutable nodes = e.nodes |> List.map MeshViewModel
     member this.Nodes = nodes |> List.map (fun n -> n.Node)
     member this.Entry = e
     member this.Meshes = nodes
 
-type MainWindowViewModel() as this = 
-    inherit ViewModelBase()
+type MainWindowViewModel() = 
     let mutable entryList : ModelViewModel list = []
     let mutable selectedEntry : ModelViewModel option = None
     let mutable selectedMesh : MeshViewModel option = None
@@ -169,12 +136,18 @@ type MainWindowViewModel() as this =
     let mutable console : string list = []
     let propertyChangedEvent = DelegateEvent<PropertyChangedEventHandler>()
     
-    do 
-        Process.GetCurrentProcess().StartInfo.RedirectStandardOutput <- true
-        Process.GetCurrentProcess().OutputDataReceived.Add(fun (obj : DataReceivedEventArgs) -> (this.Out obj.Data))
-        Console.Write "ok"
+    interface INotifyPropertyChanged with
+        [<CLIEvent>]
+        member x.PropertyChanged = propertyChangedEvent.Publish
     
-    member this.Console = console |> List.rev
+    member x.OnPropertyChanged propertyName = 
+        propertyChangedEvent.Trigger([| x;
+                                        PropertyChangedEventArgs(propertyName) |])
+    
+    member this.Console = 
+        console
+        |> List.rev
+        |> (String.concat Environment.NewLine)
     
     member private this.Out str = 
         console <- str :: console
@@ -213,53 +186,34 @@ type MainWindowViewModel() as this =
         * defaultTransform
     
     member private this.GeoGen(model : ModelViewModel) = 
-        List.collect (fun n -> (Core.Input.meshList model.Entry.scene (n |> this.Transform) n.Node) |> List.map (fun d -> (d, n.Hue)))
-        >> List.map (fun ((mat, mesh), o) -> 
-               let rnd = System.Random(Guid.NewGuid().GetHashCode())
-               let (r, g, b) = Calculates.hsv2Rgb o (rnd.NextDouble() * 0.25 + 0.75) (rnd.NextDouble() * 0.25 + 0.75)
-               let color = Color.FromRgb(BitConverter.GetBytes(r).[0], BitConverter.GetBytes(g).[0], BitConverter.GetBytes(b).[0])
-               let defaultMat = DiffuseMaterial(SolidColorBrush(color))
-               
+        List.collect (fun n -> Core.Input.meshList model.Entry.scene (n |> this.Transform) n.Node)
+        >> List.map (fun (mat, mesh) -> 
                let g = 
                    MeshGeometry3D(Positions = (mesh.vertices
                                                |> List.map (fun n -> Point3D(float (n.X), float (n.Y), float (n.Z)))
                                                |> Point3DCollection), 
                                   Normals = (mesh.normals
                                              |> List.map (fun n -> Vector3D(float (n.X), float (n.Y), float (n.Z)))
-                                             |> Vector3DCollection), 
+                                             |> Vector3DCollection),
                                   TextureCoordinates = (mesh.uv0
-                                                        |> List.map (fun n -> Point(float (n.X), float (n.Y)))
-                                                        |> PointCollection), 
+                                             |> List.map (fun n -> Point(float (n.X), float (n.Y)))
+                                             |> PointCollection),
                                   TriangleIndices = (mesh.indices
                                                      |> List.collect (fun (a, b, c) -> [ a; b; c ])
                                                      |> Int32Collection))
-               
-               let toDiffuseMaterial (i : IImage) (format : PixelFormat) = 
-                   BitmapSource.Create(i.Width, i.Height, 96.0, 96.0, format, null, i.Data, i.Stride)
-                   |> ImageBrush
-                   |> DiffuseMaterial
-               
                let m = 
                    match mat.TextureDiffuse.FilePath with
-                   | null -> defaultMat
+                   | null -> DiffuseMaterial(Brushes.Gold)
                    | path -> 
-                       match IO.File.Exists(path) with
-                       | true -> Some(Pfim.FromFile path)
-                       | false -> 
-                           let p = 
-                               IO.Path.Combine((model.Entry.filename
-                                                |> IO.Path.GetFullPath
-                                                |> IO.Path.GetDirectoryName), path)
-                           match IO.File.Exists(p) with
-                           | true -> Some(Pfim.FromFile p)
-                           | false -> None
-                       |> function 
-                       | None -> defaultMat
-                       | Some i -> 
+                       let i = Pfim.FromFile(path)
+                       
+                       let format = 
                            match i.Format with
-                           | ImageFormat.Rgb24 -> toDiffuseMaterial i PixelFormats.Bgr24
-                           | ImageFormat.Rgba32 -> toDiffuseMaterial i PixelFormats.Bgr32
-                           | _ -> defaultMat
+                           | ImageFormat.Rgb24 -> PixelFormats.Bgr24
+                           | ImageFormat.Rgba32 -> PixelFormats.Bgr32
+                       BitmapSource.Create(i.Width, i.Height, 96.0, 96.0, format, null, i.Data, i.Stride)
+                       |> ImageBrush
+                       |> DiffuseMaterial
                
                GeometryModel3D(geometry = g, material = m) :> Model3D)
         >> Model3DCollection
@@ -277,7 +231,7 @@ type MainWindowViewModel() as this =
     
     member private this.LoadFiles filenames = 
         entryList <- filenames
-                     |> List.map (Core.Input.read this.Out)
+                     |> List.map Core.Input.read
                      |> List.partition (function 
                             | Core.Input.Result.Error _ -> false
                             | Core.Input.Result.Succsed _ -> true)
@@ -297,11 +251,9 @@ type MainWindowViewModel() as this =
         RelayCommand(fun _ -> 
             let diag = OpenFileDialog(CheckFileExists = true, CheckPathExists = true, Multiselect = true)
             diag.ShowDialog() |> ignore
-            if (diag.FileNames.Length <> 0) then 
-                diag.FileNames
-                |> Seq.toList
-                |> this.LoadFiles
-            ())
+            diag.FileNames
+            |> Seq.toList
+            |> this.LoadFiles)
     
     member this.SelectAll = 
         RelayCommand(fun _ -> 

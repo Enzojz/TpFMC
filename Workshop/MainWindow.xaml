@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
         xmlns:h="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
-        xmlns:e="clr-namespace:Xceed.Wpf.Toolkit;assembly=Xceed.Wpf.Toolkit"
         xmlns:t="clr-namespace:TpfMC"
         xmlns:Command="clr-namespace:GalaSoft.MvvmLight.Command;assembly=GalaSoft.MvvmLight.Platform"
         Title="Transport Fever Model Workshop" Height="800" Width="1500"
@@ -117,10 +116,10 @@
             </ListBox>
         </GroupBox>
         <GroupBox x:Name="meshList" Header="Mesh list" Margin="5" Grid.Row="2" Grid.RowSpan="2">
-            <ListBox x:Name="meshes" Margin="5" DataContext="{Binding SelectedItem, ElementName=importFiles}" ItemsSource="{Binding Meshes}" SelectedItem="{Binding DataContext.SelectedMesh, ElementName=root}">
+            <ListBox HorizontalContentAlignment="Stretch" x:Name="meshes" Margin="5" DataContext="{Binding SelectedItem, ElementName=importFiles}" ItemsSource="{Binding Meshes}" SelectedItem="{Binding DataContext.SelectedMesh, ElementName=root}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Tag="{Binding DataContext, ElementName=root}">
+                        <StackPanel HorizontalAlignment="Stretch" Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Tag="{Binding DataContext, ElementName=root}">
                             <StackPanel.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Select all">
@@ -154,14 +153,20 @@
                                     </i:EventTrigger>
                                 </i:Interaction.Triggers>
                             </CheckBox>
-                            <TextBlock Margin="5, 0, 0, 0" Text="{Binding Name}"/>
+                            <Ellipse Margin="5, 0, 5, 0" Height="auto" Width="{Binding ActualHeight, RelativeSource={RelativeSource Self}}" StrokeThickness="4"  Stroke="Transparent">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{Binding Color}"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <TextBlock Margin="0" Text="{Binding Name}" HorizontalAlignment="Stretch"/>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
         </GroupBox>
         <GroupBox x:Name="Output" Header="Output" Margin="5" Grid.Column="1" Grid.Row="3">
-            <TextBox x:Name="Console" Margin="5" Text="{Binding DataContext.Console, Mode=OneWay, ElementName=root}"/>
+            <ListBox x:Name="Console" Margin="5" ItemsSource="{Binding DataContext.Console, Mode=OneWay, ElementName=root}" IsSynchronizedWithCurrentItem="True" 
+                     SelectedIndex="{Binding DataContext.Console.Count, Mode=OneWay, ElementName=root}"/>
         </GroupBox>
         <Button Content="Convert" Margin="10" Grid.Column="2" Grid.Row="3">
             <i:Interaction.Triggers>
