@@ -132,6 +132,7 @@ type MeshViewModel(n : Assimp.Node) =
     let mutable hue = 40
     let mutable isSelected = true
     let mutable transforms = ((Core.Input.transforms n) |> List.filter (fun m -> not m.IsIdentity)) @ [ Assimp.Matrix4x4.Identity ] |> List.map TransformViewModel
+    let mutable isConverted = false
     member this.Name = n.Name
     member this.Transforms = transforms
     member this.Node = n
@@ -151,6 +152,12 @@ type MeshViewModel(n : Assimp.Node) =
     member this.Color = 
         let (r, g, b) = Calculates.hsv2Rgb hue 0.75 0.75
         Color.FromRgb(BitConverter.GetBytes(r).[0], BitConverter.GetBytes(g).[0], BitConverter.GetBytes(b).[0])
+    
+    member this.IsConverted 
+        with get () = isConverted
+        and set (v) = 
+            isConverted <- v
+            this.OnPropertyChanged("IsConverted")
 
 type ModelViewModel(e : Core.Input.ModelInfo) = 
     let mutable entry = e
@@ -158,6 +165,7 @@ type ModelViewModel(e : Core.Input.ModelInfo) =
     member this.Nodes = nodes |> List.map (fun n -> n.Node)
     member this.Entry = e
     member this.Meshes = nodes
+    member this.Output = e.output
 
 type MainWindowViewModel() as this = 
     inherit ViewModelBase()
@@ -269,11 +277,19 @@ type MainWindowViewModel() as this =
         RelayCommand(fun _ -> 
             entryList |> List.iter (fun e -> 
                              e.Meshes
-                             |> List.map (fun n -> Core.Output.generateMeshes e.Entry (n |> this.Transform) n.Node)
-                             |> List.iter (fun (blob, mesh) -> 
-                                    this.Out(e.Entry.output + blob)
-                                    this.Out(e.Entry.output + mesh))))
-    
+                             |> List.map (fun n -> 
+                                    async { 
+                                        n.IsConverted <- false
+                                        let result = Core.Output.generateMeshes e.Entry (n |> this.Transform) n.Node
+                                        n.IsConverted <- true
+                                        return result
+                                    })
+                             |> Async.Parallel
+                             |> Async.RunSynchronously
+                             |> Seq.iter (fun (blob, mesh) -> 
+                                        this.Out(e.Entry.output + blob)
+                                        this.Out(e.Entry.output + mesh))
+                             ))
     member private this.LoadFiles filenames = 
         entryList <- filenames
                      |> List.map (Core.Input.read this.Out)
@@ -324,3 +340,10 @@ type MainWindowViewModel() as this =
             let m = a :?> MeshViewModel
             m.IsSelected <- true
             this.OnPropertyChanged("Geometries"))
+
+    member this.OpenOutput = 
+        RelayCommand(fun _ -> 
+            match selectedEntry with
+            | None -> ()
+            | Some e -> Process.Start(e.Output) |> ignore
+            )

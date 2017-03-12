@@ -1,4 +1,4 @@
-<Window
+﻿<Window
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
@@ -115,7 +115,7 @@
                 </ListBox.ItemTemplate>
             </ListBox>
         </GroupBox>
-        <GroupBox x:Name="meshList" Header="Mesh list" Margin="5" Grid.Row="2" Grid.RowSpan="2">
+        <GroupBox x:Name="meshList" Header="Mesh list" Margin="5" Grid.Row="2">
             <ListBox HorizontalContentAlignment="Stretch" x:Name="meshes" Margin="5" DataContext="{Binding SelectedItem, ElementName=importFiles}" ItemsSource="{Binding Meshes}" SelectedItem="{Binding DataContext.SelectedMesh, ElementName=root}">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
@@ -144,6 +144,13 @@
                                             </i:EventTrigger>
                                         </i:Interaction.Triggers>
                                     </MenuItem>
+                                    <MenuItem Header="Open destination">
+                                        <i:Interaction.Triggers>
+                                            <i:EventTrigger EventName="Click">
+                                                <Command:EventToCommand Command="{Binding PlacementTarget.Tag.OpenOutput, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                            </i:EventTrigger>
+                                        </i:Interaction.Triggers>
+                                    </MenuItem>
                                 </ContextMenu>
                             </StackPanel.ContextMenu>
                             <CheckBox IsChecked="{Binding IsSelected}">
@@ -159,6 +166,21 @@
                                 </Ellipse.Fill>
                             </Ellipse>
                             <TextBlock Margin="0" Text="{Binding Name}" HorizontalAlignment="Stretch"/>
+                            <TextBlock Margin="5, 0, 5, 0" HorizontalAlignment="Right" TextAlignment="Right">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsConverted}" Value="false">
+                                                <Setter Property="Text" Value="⌛"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsConverted}" Value="true">
+                                                <Setter Property="Text" Value="✔"/>
+                                                <Setter Property="Foreground" Value="Green"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -253,6 +275,37 @@
                 </ListView>
             </Grid>
         </GroupBox>
+        <Grid Grid.Row="3" Margin="5">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="1*"/>
+                <RowDefinition Height="1*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Row="0" Grid.Column="0" Margin="5" Content="Select all">
+                <i:Interaction.Triggers>
+                    <i:EventTrigger EventName="Click">
+                        <Command:EventToCommand Command="{Binding SelectAll}"/>
+                    </i:EventTrigger>
+                </i:Interaction.Triggers>
+            </Button>
+            <Button Grid.Row="0" Grid.Column="1" Margin="5" Content="Select none">
+                <i:Interaction.Triggers>
+                    <i:EventTrigger EventName="Click">
+                        <Command:EventToCommand Command="{Binding SelectNone}"/>
+                    </i:EventTrigger>
+                </i:Interaction.Triggers>
+            </Button>
+            <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="5" Content="Open destination">
+                <i:Interaction.Triggers>
+                    <i:EventTrigger EventName="Click">
+                        <Command:EventToCommand Command="{Binding OpenOutput}"/>
+                    </i:EventTrigger>
+                </i:Interaction.Triggers>
+            </Button>
+        </Grid>
     </Grid>
 
 </Window>
