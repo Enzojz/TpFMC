@@ -4,7 +4,6 @@ open System
 open System.Windows
 open System.Windows.Input
 open System.ComponentModel
-open System.Linq
 open Microsoft.Win32
 open System.Windows.Media.Media3D
 open System.Windows.Media
@@ -236,7 +235,7 @@ type MainWindowViewModel() as this =
                
                let toDiffuseMaterial (i : IImage) (format : PixelFormat) = 
                    BitmapSource.Create(i.Width, i.Height, 96.0, 96.0, format, null, i.Data, i.Stride)
-                   |> ImageBrush
+                   |> (fun b -> ImageBrush(b, ViewportUnits = BrushMappingMode.Absolute))
                    |> DiffuseMaterial
                
                let m = 
