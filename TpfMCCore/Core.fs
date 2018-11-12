@@ -3,37 +3,84 @@
 open Assimp
 open System
 
-module Core = 
+module Core =     
+    let aindent = "  "
     type Lua = 
         | V of int
+        | B of bool
+        | N of float
         | S of string
-        | P of (string * Lua)
-        | A of Lua list
-        | F of (string * Lua)
-        | C of (bool * Lua)
+        | L of (string * Lua)      // local x = 
+        | F of (string * Lua)      // function
+        | P of (string * Lua) list // { x = .. }
+        | X of (int * Lua) list    // [x] = ..
+        | A of Lua list            // a table
+        | R of Lua list            // Root
+        | RT of Lua                // Return
+        | VA of string             // Ref
     
+    let isSimple nodes = nodes |> List.forall (function V _ | B _ | N _ -> true | _ -> false)
+
     let rec printLua indent (node : Lua) = 
+        let sindent = String.replicate indent aindent
         let ind str = 
             function 
-            | true -> (Environment.NewLine + (String.replicate indent "  ") + str)
+            | true -> (Environment.NewLine + sindent + str)
             | false -> str
         match node with
+        | R ls -> ls |> List.map (printLua indent) |> String.concat Environment.NewLine
         | V num -> sprintf "%d" num
+        | B bln -> sprintf "%s" (if bln then "true" else "false")
+        | N flt -> sprintf "%f" flt
         | S str -> @"""" + str + @""""
-        | P(name, x) -> name + " = " + (printLua (indent + 1) x)
+        | P ls -> 
+          match ls |> List.map (fun (_, n) -> n) |> isSimple with
+          | true when ls |> List.length < 5 -> 
+            sprintf "{ %s }" 
+              (ls 
+                |> List.map (
+                  fun (name, x) -> 
+                    let children = (printLua (indent + 1) x)
+                    sprintf "%s = %s" name children
+                )
+                |> String.concat (", ")
+              )
+          | _ ->
+              sprintf "{\n%s\n%s}" 
+                (ls 
+                  |> List.map (
+                    fun (name, x) -> 
+                      let children = (printLua (indent + 1) x)
+                      match x with
+                      | P z when z |> List.map (fun (_, n) -> n) |> isSimple -> 
+                        let maxName = match ls with [] -> 0 | _ -> ls |> List.map (fun (n, _) -> n.Length) |> List.max
+                        sprintf "%s%s = %s" sindent (name.PadRight(maxName)) children
+                      | _ -> sprintf "%s%s = %s" sindent name children
+                  )
+                  |> String.concat ("," + Environment.NewLine)
+                )
+                (String.replicate (indent - 1) aindent)
+        | X ls -> printLua indent (P (List.map (fun (name, x) -> sprintf "[%d]" name, x) ls))
         | A ls -> 
-            "{ " + (ls
-                    |> List.map (printLua (indent + 1))
-                    |> String.concat ", ")
-            |> fun str -> str + (ind " }" (str.Contains(Environment.NewLine)))
-        | F(f, x) -> (sprintf "function %s() return " f) + (printLua (indent + 1) x) + " end"
-        | C(c, x) -> 
-            if c then (printLua indent x)
-            else ""
-        |> fun rs -> 
-            match node with
-            | C _ | F _ | V _ -> rs
-            | _ -> ind rs (rs.Length > 30)
+          match isSimple ls with
+            | true -> 
+              sprintf "{ %s }"
+                (ls |> List.map (printLua (indent + 1)) |> String.concat ", ")
+            | false ->
+              sprintf "{\n%s\n%s}" 
+                (ls 
+                  |> List.map (
+                    fun x -> 
+                      let children = (printLua (indent + 1) x)
+                      sprintf "%s%s" sindent children
+                  )
+                  |> String.concat ("," + Environment.NewLine)
+                )
+                (String.replicate (indent - 1) aindent)
+        | L (v, x) -> (sprintf "local %s = " v) + (printLua (indent + 1) x)
+        | F (f, x) -> (sprintf "function %s() return " f) + (printLua (indent + 1) x) + " end"
+        | VA v -> v
+        | RT l -> (sprintf "return %s" (printLua (indent + 1) l))
     
     module Input = 
         type MeshData = 
@@ -260,8 +307,8 @@ module Core =
                   uv1 = counts.vertices + counts.uv0 + counts.normals + counts.tangents }
             
             let indiceAttr count offset = 
-                A [ P("count", V count);
-                    P("offset", V offset) ]
+                P [ ("count", V count);
+                    ("offset", V offset) ]
             
             let subMeshIndices meshes offset = 
                 let rec work (meshes : (Material * ByteData) list) offset result = 
@@ -269,27 +316,36 @@ module Core =
                     | [] -> A result
                     | (m, r) :: rest -> 
                         let indiceLength = r.indices.Length * 3 * sizeof<int>
-                        result @ [ A [ P("indices", 
-                                         A [ P("normal", indiceAttr indiceLength offset);
-                                             P("position", indiceAttr indiceLength offset);
-                                             P("tangent", indiceAttr indiceLength offset);
-                                             P("uv0", indiceAttr indiceLength offset);
-                                             C(r.uv1.Length > 0, P("uv1", indiceAttr indiceLength offset)) ]);
-                                       P("materials", A [ S(m.Name + @".mtl") ]) ] ]
+                        result @ [ P [ ("indices", 
+                                         P (
+                                          [ ("normal", indiceAttr indiceLength offset);
+                                            ("position", indiceAttr indiceLength offset);
+                                            ("tangent", indiceAttr indiceLength offset);
+                                            ("uv0", indiceAttr indiceLength offset)
+                                          ] @
+                                          if (r.uv1.Length > 0) then [("uv1", indiceAttr indiceLength offset)] else []
+                                         )
+                                       );
+                                       ("materials", A [ S (m.Name + @".mtl") ]) ] ]
                         |> work rest (offset + indiceLength)
                 work meshes offset []
             
-            let vertexAttr count numComp offset = A(P("count", V count) :: P("numComp", V numComp) :: [ P("offset", V offset) ])
+            let vertexAttr count numComp offset = P [("count", V count); ("numComp", V numComp); ("offset", V offset) ]
             F("data", 
-              A [ P("animations", A []);
-                  P("matConfigs", A [ A(List.init meshes.Length (fun _ -> V 0)) ]);
-                  P("subMeshes", subMeshIndices meshes (offsets.uv1 + counts.uv1));
-                  P("vertexAttr", 
-                    A [ P("normal", vertexAttr counts.normals 3 offsets.normals);
-                        P("position", vertexAttr counts.vertices 3 offsets.vertices);
-                        P("tangent", vertexAttr counts.tangents 4 offsets.tangents);
-                        P("uv0", vertexAttr counts.uv0 2 offsets.uv0);
-                        C(counts.uv1 > 0, P("uv1", vertexAttr counts.uv1 2 offsets.uv1)) ]) ])
+              P [ ("animations", A []);
+                  ("matConfigs", A [ A(List.init meshes.Length (fun _ -> V 0)) ]);
+                  ("subMeshes", subMeshIndices meshes (offsets.uv1 + counts.uv1));
+                  ("vertexAttr", 
+                    P (
+                      [ ("normal", vertexAttr counts.normals 3 offsets.normals);
+                        ("position", vertexAttr counts.vertices 3 offsets.vertices);
+                        ("tangent", vertexAttr counts.tangents 4 offsets.tangents);
+                        ("uv0", vertexAttr counts.uv0 2 offsets.uv0)
+                      ] @
+                      if (counts.uv1 > 0) then [("uv1", vertexAttr counts.uv1 2 offsets.uv1)] else []
+                  )
+                  )
+              ])
             |> printLua 0
         
         let blobGen (mesh : ByteData) = 
