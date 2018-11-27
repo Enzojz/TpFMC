@@ -220,7 +220,7 @@ type MainWindowViewModel() as this =
         * defaultTransform
     
     member private this.GeoGen(model : ModelViewModel) = 
-        List.collect (fun n -> (Core.Input.meshList model.Entry.scene (n |> this.Transform) n.Node) |> List.map (fun d -> (d, n.Hue)))
+        List.collect (fun n -> (Core.Input.meshList false model.Entry.scene (n |> this.Transform) n.Node) |> List.map (fun d -> (d, n.Hue)))
         >> List.map (fun ((mat, mesh), o) -> 
                let rnd = System.Random(Guid.NewGuid().GetHashCode())
                let (r, g, b) = Calculates.hsv2Rgb o (rnd.NextDouble() * 0.25 + 0.75) (rnd.NextDouble() * 0.25 + 0.75)
@@ -280,7 +280,7 @@ type MainWindowViewModel() as this =
                              |> List.map (fun n -> 
                                     async { 
                                         n.IsConverted <- false
-                                        let result = Core.Output.generateMeshes e.Entry (n |> this.Transform) n.Node
+                                        let result = Core.Output.generateMeshes false e.Entry (n |> this.Transform) n.Node
                                         n.IsConverted <- true
                                         return result
                                     })

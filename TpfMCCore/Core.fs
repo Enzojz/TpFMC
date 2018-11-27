@@ -228,21 +228,21 @@ module Core =
                 | [] -> []
             merge 0 indices
         
-        let mergeMeshes (meshes : MeshData list) = 
+        let mergeMeshes uv02uv1 (meshes : MeshData list) = 
             let normalizedMeshes = meshes |> List.map normalizeMesh
             let merge f = normalizedMeshes |> List.collect f
             { normals = merge (fun r -> r.normals);
               vertices = merge (fun r -> r.vertices);
               tangents = merge (fun r -> r.tangents);
               uv0 = merge (fun r -> r.uv0);
-              uv1 = merge (fun r -> r.uv1);
+              uv1 = merge (fun r -> if uv02uv1 then r.uv0 else r.uv1);
               transform = Matrix4x4.Identity;
               indices = 
                   normalizedMeshes
                   |> List.map (fun m -> m.indices)
                   |> mergeIndices }
         
-        let meshList (scene : Scene) (m : Assimp.Matrix4x4) (node : Node) = 
+        let meshList uv02uv1 (scene : Scene) (m : Assimp.Matrix4x4) (node : Node) = 
             let rec allMeshes (node : Node) = 
                 (node.MeshIndices
                  |> Seq.map (fun i -> scene.Meshes.[i])
@@ -258,7 +258,7 @@ module Core =
                     meshes
                     |> List.map convertMesh
                     |> List.map (fun mesh -> { mesh with transform = mesh.transform * m })
-                    |> mergeMeshes))
+                    |> mergeMeshes uv02uv1))
     
     module Output = 
         type ByteData = 
@@ -380,9 +380,9 @@ module Core =
             IO.File.WriteAllText(mshPath, mesh)
             (meshName + ".msh.blob", meshName + ".msh")
         
-        let generateMeshes (model : Input.ModelInfo) (m : Assimp.Matrix4x4) (node : Node) = 
+        let generateMeshes uv0uv1 (model : Input.ModelInfo) (m : Assimp.Matrix4x4) (node : Node) = 
             node
-            |> (Input.meshList model.scene m)
+            |> (Input.meshList uv0uv1 model.scene m)
             |> List.map (fun (material, meshes) -> (material, convertToBytes meshes))
             |> prepareMesh
             |> fun (blob, mesh) -> (node.Name, blob, mesh)
